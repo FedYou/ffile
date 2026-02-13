@@ -22,9 +22,9 @@ impl App<'_> {
             return;
         }
 
-        let _ = tui::draw_sidebar(frame, self.title);
-        let _ = tui::draw_file_panel(frame);
-        let _ = tui::draw_panel(frame);
+        tui::draw_sidebar(frame, self.title);
+        tui::draw_file_panel(frame);
+        tui::draw_panel(frame);
     }
 }
 
