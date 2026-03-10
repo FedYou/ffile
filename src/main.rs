@@ -3,10 +3,17 @@ mod fs;
 mod tui;
 mod utils;
 
+struct SideBar<'a> {
+    items: Vec<&'a str>,
+    ignore: Vec<u64>,
+    selected: Option<usize>,
+}
+
 struct App<'a> {
     title: &'a str,
     exit: bool,
     is_small: bool,
+    sidebar: SideBar<'a>,
 }
 
 impl App<'_> {
@@ -24,7 +31,12 @@ impl App<'_> {
             return;
         }
 
-        tui::draw_sidebar(frame, self.title);
+        tui::draw_sidebar(
+            frame,
+            self.title,
+            self.sidebar.items.clone(),
+            self.sidebar.selected,
+        );
         tui::draw_file_panel(frame);
         tui::draw_panel(frame);
     }
@@ -32,10 +44,18 @@ impl App<'_> {
 
 fn main() -> Result<(), std::io::Error> {
     let mut terminal = ratatui::init();
+
+    let mut sidebar = SideBar {
+        items: vec![" Home", "󰇅 Desktop", "󰴘 Videos", " Pictures"],
+        ignore: vec![],
+        selected: Some(0),
+    };
+
     let mut app = App {
         title: "FFile",
         exit: false,
         is_small: false,
+        sidebar,
     };
 
     loop {

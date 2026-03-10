@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{HorizontalAlignment, Rect},
-    style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    style::{Color, Modifier, Style},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
 };
 
 pub fn draw_min_area_warning(frame: &mut ratatui::Frame) {
@@ -24,15 +24,29 @@ pub fn draw_min_area_warning(frame: &mut ratatui::Frame) {
     frame.render_widget(warning_widget, text_area);
 }
 
-pub fn draw_sidebar(frame: &mut ratatui::Frame, title: &str) {
+pub fn draw_sidebar(
+    frame: &mut ratatui::Frame,
+    title: &str,
+    items: Vec<&str>,
+    selected: Option<usize>,
+) {
     let terminal_area = frame.area();
     let sidebar_title = format!(" {title} ");
+
+    let sidebar_list: Vec<ListItem> = items.into_iter().map(|i| ListItem::new(i)).collect();
 
     let sidebar_area = Rect {
         x: 0,
         y: 1,
         width: 18,
         height: terminal_area.height - 7,
+    };
+
+    let sidebar_list_area = Rect {
+        x: 1,
+        y: 2,
+        width: 17,
+        height: terminal_area.height - 8,
     };
 
     let sidebar_widget = Block::new()
@@ -42,6 +56,23 @@ pub fn draw_sidebar(frame: &mut ratatui::Frame, title: &str) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Yellow));
 
+    let sidebar_list_widget = List::new(sidebar_list)
+        .style(Style::default().add_modifier(Modifier::DIM))
+        .highlight_symbol(" ")
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        );
+
+    let mut sidebar_list_status = ListState::default();
+    sidebar_list_status.select(selected);
+
+    frame.render_stateful_widget(
+        sidebar_list_widget,
+        sidebar_list_area,
+        &mut sidebar_list_status,
+    );
     frame.render_widget(sidebar_widget, sidebar_area);
 }
 
