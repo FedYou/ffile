@@ -4,6 +4,20 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+#[derive(Debug)]
+pub enum ItemType {
+    Dir,
+    File,
+}
+
+#[derive(Debug)]
+pub struct ItemPath<'a> {
+    path: Option<PathBuf>,
+    name: &'a str,
+    icon: &'a str,
+    _type: ItemType,
+}
+
 #[derive(Debug, Clone, Ord, Eq, PartialEq, PartialOrd)]
 pub enum EntryType {
     Dir,
@@ -100,4 +114,68 @@ pub fn get_dir_content(dir_content: DirContent) -> Result<Vec<Entry>, std::io::E
     }
 
     Ok(entries)
+}
+
+pub fn get_user_dirs() -> Vec<ItemPath<'static>> {
+    let mut dirs: Vec<ItemPath> = Vec::new();
+
+    if let Some(user_dirs) = directories::UserDirs::new() {
+        let home = ItemPath {
+            path: Some(user_dirs.home_dir().to_path_buf()),
+            name: "Home",
+            icon: " ",
+            _type: ItemType::Dir,
+        };
+        let desktop = ItemPath {
+            path: user_dirs.desktop_dir().map(|p| p.to_path_buf()),
+            name: "Desktop",
+            icon: "󰇅 ",
+            _type: ItemType::Dir,
+        };
+
+        let picture = ItemPath {
+            path: user_dirs.picture_dir().map(|p| p.to_path_buf()),
+            name: "Pictures",
+            icon: " ",
+            _type: ItemType::Dir,
+        };
+
+        let document = ItemPath {
+            path: user_dirs.document_dir().map(|p| p.to_path_buf()),
+            name: "Documents",
+            icon: "󱔗 ",
+            _type: ItemType::Dir,
+        };
+
+        let audio = ItemPath {
+            path: user_dirs.audio_dir().map(|p| p.to_path_buf()),
+            name: "Music",
+            icon: " ",
+            _type: ItemType::Dir,
+        };
+
+        let video = ItemPath {
+            path: user_dirs.video_dir().map(|p| p.to_path_buf()),
+            name: "Videos",
+            icon: "󰕧 ",
+            _type: ItemType::Dir,
+        };
+
+        let download = ItemPath {
+            path: user_dirs.download_dir().map(|p| p.to_path_buf()),
+            name: "Downloads",
+            icon: "󰇚 ",
+            _type: ItemType::Dir,
+        };
+
+        dirs.push(home);
+        dirs.push(desktop);
+        dirs.push(download);
+        dirs.push(picture);
+        dirs.push(audio);
+        dirs.push(video);
+        dirs.push(document);
+    }
+
+    return dirs;
 }
