@@ -1,0 +1,77 @@
+use std::fs::DirEntry;
+use std::time::SystemTime;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+#[derive(Debug)]
+pub enum EntryType {
+    Dir,
+    File,
+}
+
+#[derive(Debug, Clone)]
+pub struct Metadata {
+    pub name: String,
+    pub ext: Option<String>,
+    pub size: u64,
+    pub permissions: String,
+    pub date_modified: SystemTime,
+    pub date_created: SystemTime,
+    pub date_accessed: SystemTime,
+}
+
+fn permissions_mode_to_string(mode: u32) -> String {
+    let mut s = String::new();
+    let flags = [
+        (0o400, 'r'),
+        (0o200, 'w'),
+        (0o100, 'x'),
+        (0o040, 'r'),
+        (0o020, 'w'),
+        (0o010, 'x'),
+        (0o004, 'r'),
+        (0o002, 'w'),
+        (0o001, 'x'),
+    ];
+
+    for (bit, ch) in flags {
+        s.push(if mode & bit != 0 { ch } else { '-' });
+    }
+
+    s
+}
+
+fn get_permissions(metadata: &std::fs::Metadata) -> String {
+    #[cfg(unix)]
+    {
+        permissions_mode_to_string(metadata.permissions().mode())
+    }
+
+    #[cfg(windows)]
+    {
+        if metadata.permissions().readonly() {
+            "r--r--r--".to_string()
+        } else {
+            "rwxrwxrwx".to_string()
+        }
+    }
+}
+
+pub fn get_metadata(entry: &DirEntry) -> Metadata {
+    let metadata = entry.metadata().unwrap();
+
+    Metadata {
+        name: entry.file_name().into_string().expect("REASON"),
+        ext: entry
+            .path()
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_string()),
+        size: metadata.len(),
+        permissions: get_permissions(&metadata),
+        date_modified: metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+        date_created: metadata.created().unwrap_or(SystemTime::UNIX_EPOCH),
+        date_accessed: metadata.accessed().unwrap_or(SystemTime::UNIX_EPOCH),
+    }
+}
