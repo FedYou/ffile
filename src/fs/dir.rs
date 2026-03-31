@@ -79,6 +79,13 @@ pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::E
     Ok(entries)
 }
 
+pub fn get_user_home_dir() -> PathBuf {
+    directories::UserDirs::new()
+        .expect("User's HOME folder not found")
+        .home_dir()
+        .to_path_buf()
+}
+
 pub fn get_user_dirs() -> Vec<UserItem> {
     let mut dirs: Vec<UserItem> = Vec::new();
 
