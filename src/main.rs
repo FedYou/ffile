@@ -1,3 +1,4 @@
+mod controller;
 mod fs;
 mod keyboard;
 mod tui;
@@ -5,10 +6,13 @@ mod utils;
 
 use keyboard::Action;
 
+use crate::controller::Controller;
+
 struct App {
     title: String,
     exit: bool,
     is_small: bool,
+    controller: Controller,
 }
 
 impl App {
@@ -46,6 +50,7 @@ fn main() -> Result<(), std::io::Error> {
         title: "FFile".to_string(),
         exit: false,
         is_small: false,
+        controller: Controller::new(),
     };
 
     loop {

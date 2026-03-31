@@ -2,6 +2,7 @@ use std::{fs, path::PathBuf};
 
 use super::metadata::{get_metadata, Metadata};
 
+#[derive(Clone)]
 pub struct UserItem {
     path: Option<PathBuf>,
     name: String,
@@ -14,13 +15,14 @@ pub enum Sort {
 }
 
 pub struct EntriesOptions {
-    pub path: String,
+    pub path: PathBuf,
     pub sort: Sort,
     pub invert: bool,
     pub show_hidden: bool,
     pub filter: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct Entry {
     path: PathBuf,
     is_symlink: bool,
