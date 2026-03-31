@@ -1,7 +1,9 @@
-use crossterm::event::KeyCode;
 mod fs;
+mod keyboard;
 mod tui;
 mod utils;
+
+use keyboard::Action;
 
 struct App {
     title: String,
@@ -20,6 +22,20 @@ impl App {
         }
 
         tui::app::draw(frame, self.is_small);
+    }
+
+    fn execute_action(&mut self, action: Action) {
+        if action == Action::Exit {
+            self.exit = true
+        }
+
+        if self.is_small {
+            return;
+        }
+
+        match action {
+            _ => {}
+        }
     }
 }
 
@@ -40,13 +56,9 @@ fn main() -> Result<(), std::io::Error> {
         let _ = terminal.draw(|frame| app.render(frame));
 
         if let crossterm::event::Event::Key(key) = crossterm::event::read()? {
-            if key.code == KeyCode::Char('q') {
-                app.exit = true
-            }
+            let action = keyboard::get_action(key.code, None);
 
-            if app.is_small {
-                continue;
-            }
+            app.execute_action(action);
         }
     }
 
