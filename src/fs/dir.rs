@@ -4,8 +4,8 @@ use super::metadata::{get_metadata, Metadata};
 
 #[derive(Clone)]
 pub struct UserItem {
-    path: Option<PathBuf>,
-    name: String,
+    pub path: Option<PathBuf>,
+    pub name: String,
 }
 
 pub enum Sort {

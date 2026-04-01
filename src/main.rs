@@ -1,47 +1,12 @@
+mod app;
 mod controller;
 mod fs;
 mod keyboard;
 mod tui;
 mod utils;
 
-use keyboard::Action;
-
-use crate::controller::Controller;
-
-struct App {
-    title: String,
-    exit: bool,
-    is_small: bool,
-    controller: Controller,
-}
-
-impl App {
-    fn render(&mut self, frame: &mut ratatui::Frame) {
-        let term_area = frame.area();
-
-        if term_area.width < 80 || term_area.height < 18 {
-            self.is_small = true;
-        } else {
-            self.is_small = false
-        }
-
-        tui::app::draw(frame, self.is_small);
-    }
-
-    fn execute_action(&mut self, action: Action) {
-        if action == Action::Exit {
-            self.exit = true
-        }
-
-        if self.is_small {
-            return;
-        }
-
-        match action {
-            _ => {}
-        }
-    }
-}
+use app::App;
+use controller::Controller;
 
 fn main() -> Result<(), std::io::Error> {
     let mut terminal = ratatui::init();
