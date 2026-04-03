@@ -24,10 +24,10 @@ pub struct EntriesOptions {
 
 #[derive(Clone)]
 pub struct Entry {
-    path: PathBuf,
-    is_symlink: bool,
-    is_file: bool,
-    metadata: Metadata,
+    pub path: PathBuf,
+    pub is_symlink: bool,
+    pub is_file: bool,
+    pub metadata: Metadata,
 }
 
 pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::Error> {
