@@ -10,14 +10,15 @@ use utils::IndexController;
 
 pub use utils::IndexAction;
 
-enum MoveMode {
+#[derive(PartialEq)]
+pub enum Mode {
     SideBar,
-    Viewer,
+    FilePanel,
 }
 
 pub struct IndexList {
     pub sidebar: Option<usize>,
-    pub viewer: Option<usize>,
+    pub file_panel: Option<usize>,
 }
 
 pub struct Controller {
@@ -25,7 +26,7 @@ pub struct Controller {
     pub user_dir: Vec<UserItem>,
     pub current_entries: Vec<Entry>,
     pub index_list: IndexList,
-    pub mode: MoveMode,
+    pub mode: Mode,
     index: IndexController,
 }
 
@@ -51,9 +52,9 @@ impl Controller {
             user_dir,
             index_list: IndexList {
                 sidebar: Some(0),
-                viewer: None,
+                file_panel: Some(0),
             },
-            mode: MoveMode::SideBar,
+            mode: Mode::SideBar,
             index: IndexController {
                 current: 0,
                 len: user_dir_len,
@@ -85,13 +86,18 @@ impl Controller {
     }
     fn change_index(&mut self, index_action: IndexAction) {
         match self.mode {
-            MoveMode::SideBar => {
+            Mode::SideBar => {
                 self.index.setLen(self.user_dir.len());
                 self.index.setCurrent(self.index_list.sidebar);
                 self.index.apply_action(index_action);
                 self.index_list.sidebar = Some(self.index.current)
             }
-            MoveMode::Viewer => {}
+            Mode::FilePanel => {
+                self.index.setLen(self.current_entries.len());
+                self.index.setCurrent(self.index_list.file_panel);
+                self.index.apply_action(index_action);
+                self.index_list.file_panel = Some(self.index.current)
+            }
         }
     }
 
