@@ -104,4 +104,15 @@ impl Controller {
     pub fn change_index_vertical(&mut self, index_action: IndexAction) {
         self.change_index(index_action);
     }
+
+    pub fn change_mode_toggle(&mut self) {
+        match self.mode {
+            Mode::SideBar => {
+                self.mode = Mode::FilePanel;
+            }
+            _ => {
+                self.mode = Mode::SideBar;
+            }
+        }
+    }
 }

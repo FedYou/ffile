@@ -5,6 +5,7 @@ pub enum Action {
     Up,
     Down,
     Exit,
+    ChangeModeToggle,
     None,
 }
 
@@ -25,5 +26,9 @@ pub static SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Down,
         action: Action::Down,
+    },
+    Shortcut {
+        key: KeyCode::Char('f'),
+        action: Action::ChangeModeToggle,
     },
 ];

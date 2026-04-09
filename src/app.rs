@@ -1,4 +1,4 @@
-use crate::controller::{Controller, IndexAction};
+use crate::controller::{Controller, IndexAction, Mode};
 use crate::keyboard::Action;
 use crate::tui;
 
@@ -37,6 +37,9 @@ impl App {
             }
             Action::Down => {
                 self.controller.change_index_vertical(IndexAction::Increase);
+            }
+            Action::ChangeModeToggle => {
+                self.controller.change_mode_toggle();
             }
             _ => {}
         }
