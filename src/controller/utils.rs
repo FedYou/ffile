@@ -9,16 +9,16 @@ pub enum IndexAction {
 }
 
 impl IndexController {
-    pub fn setLen(&mut self, len: usize) {
+    pub fn set_len(&mut self, len: usize) {
         self.len = len;
         self.current = 0
     }
-    pub fn setCurrent(&mut self, current: Option<usize>) {
+    pub fn set_current(&mut self, current: Option<usize>) {
         if let Some(c) = current {
             self.current = c;
         }
     }
-    pub fn setIgnore(&mut self, ignore: Vec<usize>) {
+    pub fn set_ignore(&mut self, ignore: Vec<usize>) {
         self.ignore = ignore
     }
 

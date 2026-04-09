@@ -87,14 +87,14 @@ impl Controller {
     fn change_index(&mut self, index_action: IndexAction) {
         match self.mode {
             Mode::SideBar => {
-                self.index.setLen(self.user_dir.len());
-                self.index.setCurrent(self.index_list.sidebar);
+                self.index.set_len(self.user_dir.len());
+                self.index.set_current(self.index_list.sidebar);
                 self.index.apply_action(index_action);
                 self.index_list.sidebar = Some(self.index.current)
             }
             Mode::FilePanel => {
-                self.index.setLen(self.current_entries.len());
-                self.index.setCurrent(self.index_list.file_panel);
+                self.index.set_len(self.current_entries.len());
+                self.index.set_current(self.index_list.file_panel);
                 self.index.apply_action(index_action);
                 self.index_list.file_panel = Some(self.index.current)
             }
