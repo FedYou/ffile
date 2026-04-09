@@ -2,7 +2,8 @@ use ratatui::{layout::Rect, text::ToText};
 
 struct Corner {
     symbol: char,
-    area: Rect,
+    x: u16,
+    y: u16,
 }
 
 pub fn draw(frame: &mut ratatui::Frame) {
@@ -12,46 +13,38 @@ pub fn draw(frame: &mut ratatui::Frame) {
         // Izquierda arriba del file_panel para unirse con el sideabr
         Corner {
             symbol: '┤',
-            area: Rect {
-                x: 18,
-                y: 1,
-                width: 1,
-                height: 1,
-            },
+            x: 18,
+            y: 1,
         },
         // Izquierda abajo del file_panel para unirse con el sideabr
         Corner {
             symbol: '┤',
-            area: Rect {
-                x: 18,
-                y: term_area.height - 7,
-                width: 1,
-                height: 1,
-            },
+            x: 18,
+            y: term_area.height - 7,
         },
         // Izquierda del header del file_panel
         Corner {
             symbol: '├',
-            area: Rect {
-                x: 18,
-                y: 2,
-                width: 1,
-                height: 1,
-            },
+            x: 18,
+            y: 2,
         },
         // Derecha del header del file_panel
         Corner {
             symbol: '┤',
-            area: Rect {
-                x: term_area.width - 1,
-                y: 2,
-                width: 1,
-                height: 1,
-            },
+            x: term_area.width - 1,
+            y: 2,
         },
     ];
 
     for c in corners {
-        frame.render_widget(c.symbol.to_text(), c.area);
+        frame.render_widget(
+            c.symbol.to_text(),
+            Rect {
+                x: c.x,
+                y: c.y,
+                width: 1,
+                height: 1,
+            },
+        );
     }
 }
