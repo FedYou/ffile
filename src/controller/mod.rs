@@ -52,7 +52,7 @@ impl Controller {
             user_dir,
             index_list: IndexList {
                 sidebar: Some(0),
-                file_panel: Some(0),
+                file_panel: None,
             },
             mode: Mode::SideBar,
             index: IndexController {
@@ -72,7 +72,8 @@ impl Controller {
             self.current_dir.to_str().unwrap()
         );
 
-        self.current_entries = get_dir_entries(options).expect(&expect_msg)
+        self.current_entries = get_dir_entries(options).expect(&expect_msg);
+        self.index_list.file_panel = None
     }
 
     fn get_entries_option(&self) -> EntriesOptions {
@@ -109,6 +110,11 @@ impl Controller {
         match self.mode {
             Mode::SideBar => {
                 self.mode = Mode::FilePanel;
+                // Si no esta seleccionado nada seleciona el primer archivo al cambiar
+                // Solo si hay items para seleccionar
+                if !self.current_entries.is_empty() && (self.index_list.file_panel == None) {
+                    self.index_list.file_panel = Some(0)
+                }
             }
             _ => {
                 self.mode = Mode::SideBar;
