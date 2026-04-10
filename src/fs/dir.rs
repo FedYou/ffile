@@ -125,3 +125,11 @@ pub fn get_user_dirs() -> Vec<UserItem> {
 
     dirs
 }
+
+pub fn get_parent(path: PathBuf) -> PathBuf {
+    path.parent()
+        // Si existe un parent lo retorna
+        .map(|p| p.to_path_buf())
+        // De lo contrario devuelve el mismo directorio ingresado
+        .unwrap_or(path)
+}

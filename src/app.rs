@@ -41,6 +41,12 @@ impl App {
             Action::ChangeModeToggle => {
                 self.controller.change_mode_toggle();
             }
+            Action::Open => {
+                self.controller.open();
+            }
+            Action::ToParent => {
+                self.controller.to_parent_directory();
+            }
             _ => {}
         }
     }
