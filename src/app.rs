@@ -1,4 +1,4 @@
-use crate::controller::{Controller, IndexAction, Mode};
+use crate::controller::{Controller, IndexAction};
 use crate::keyboard::Action;
 use crate::tui;
 
@@ -20,6 +20,10 @@ impl App {
         }
 
         tui::draw(frame, self);
+    }
+
+    pub fn update(&mut self) {
+        self.controller.update();
     }
 
     pub fn execute_action(&mut self, action: Action) {

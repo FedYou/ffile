@@ -1,9 +1,10 @@
 mod utils;
 
 use crate::fs::dir::{
-    get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, EntriesOptions, Entry, Sort,
-    UserItem,
+    get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, nearest_existing_dir,
+    EntriesOptions, Entry, Sort, UserItem,
 };
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 use std::path::PathBuf;
 
@@ -28,11 +29,12 @@ pub struct Controller {
     pub current_entries: Vec<Entry>,
     pub index_list: IndexList,
     pub mode: Mode,
+    pub watcher: RecommendedWatcher,
     index: IndexController,
 }
 
 impl Controller {
-    pub fn new() -> Self {
+    pub fn new(mut watcher: RecommendedWatcher) -> Self {
         let current_dir = get_user_home_dir();
         let user_dir = get_user_dirs();
         let user_dir_len = user_dir.len();
@@ -52,8 +54,9 @@ impl Controller {
         } else {
             None
         };
-
+        let _ = watcher.watch(&current_dir, RecursiveMode::NonRecursive);
         Self {
+            watcher,
             current_dir,
             current_entries,
             user_dir,
@@ -70,8 +73,31 @@ impl Controller {
         }
     }
 
+    pub fn update(&mut self) {
+        self.current_dir = nearest_existing_dir(self.current_dir.clone());
+
+        let options = self.get_entries_option();
+
+        let expect_msg = format!(
+            "Cannot get contents of {} directory",
+            self.current_dir.to_str().unwrap()
+        );
+
+        self.current_entries = get_dir_entries(options).expect(&expect_msg);
+        if self.current_entries.is_empty() {
+            self.index_list.file_panel = None;
+        }
+
+        self.fix_open_mode_file_panel();
+    }
+
     fn open_directory(&mut self, path: PathBuf) {
-        self.current_dir = path;
+        let valid_dir = nearest_existing_dir(path);
+
+        let _ = self.watcher.unwatch(&self.current_dir);
+        let _ = self.watcher.watch(&valid_dir, RecursiveMode::NonRecursive);
+
+        self.current_dir = valid_dir;
 
         let options = self.get_entries_option();
 

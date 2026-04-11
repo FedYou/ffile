@@ -133,3 +133,28 @@ pub fn get_parent(path: PathBuf) -> PathBuf {
         // De lo contrario devuelve el mismo directorio ingresado
         .unwrap_or(path)
 }
+
+pub fn nearest_existing_dir(path: PathBuf) -> PathBuf {
+    // Valida si la ruta ingresada existe
+
+    let mut is_invalid = false;
+
+    match fs::metadata(&path) {
+        Ok(entry) => {
+            if entry.is_file() {
+                is_invalid = true;
+            }
+        }
+        Err(_) => is_invalid = true,
+    }
+
+    if is_invalid {
+        return path
+            .parent()
+            // Se llama recursivamente hasta que la ruta sea valida
+            .map(|p| nearest_existing_dir(p.to_path_buf()))
+            .unwrap_or(path);
+    }
+
+    path
+}
