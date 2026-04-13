@@ -34,8 +34,16 @@ fn main() -> Result<(), std::io::Error> {
             break;
         }
 
-        while let Ok(_) = rx.try_recv() {
-            dirty = true;
+        while let Ok(res) = rx.try_recv() {
+            match res {
+                Ok(event) => match event.kind {
+                    notify::EventKind::Any => {}
+                    notify::EventKind::Other => {}
+                    notify::EventKind::Access(_) => {}
+                    _ => dirty = true,
+                },
+                _ => {}
+            }
         }
 
         if dirty {
