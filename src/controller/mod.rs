@@ -86,6 +86,10 @@ impl Controller {
         self.current_entries = get_dir_entries(options).expect(&expect_msg);
         if self.current_entries.is_empty() {
             self.index_list.file_panel = None;
+        } else if let Some(index) = self.index_list.file_panel {
+            if index > self.current_entries.len() - 1 {
+                self.index_list.file_panel = Some(self.current_entries.len() - 1);
+            }
         }
 
         self.fix_open_mode_file_panel();
