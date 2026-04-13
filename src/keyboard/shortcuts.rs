@@ -6,6 +6,8 @@ pub enum Action {
     Down,
     Exit,
     ChangeModeToggle,
+    ChangeModeMetadata,
+    CopyMetadata,
     Open,
     ToParent,
     None,
@@ -44,5 +46,13 @@ pub static SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Enter,
         action: Action::Open,
+    },
+    Shortcut {
+        key: KeyCode::Char('m'),
+        action: Action::ChangeModeMetadata,
+    },
+    Shortcut {
+        key: KeyCode::Char(' '),
+        action: Action::CopyMetadata,
     },
 ];

@@ -51,6 +51,12 @@ impl App {
             Action::ToParent => {
                 self.controller.to_parent_directory();
             }
+            Action::ChangeModeMetadata => {
+                self.controller.change_mode_metadata();
+            }
+            Action::CopyMetadata => {
+                self.controller.copy_metadata_selected();
+            }
             _ => {}
         }
     }

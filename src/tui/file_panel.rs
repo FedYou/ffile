@@ -50,7 +50,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     let mut list_state = ListState::default();
     list_state.select(app.controller.index_list.file_panel);
 
-    let mut index_position: String = "═╣ 0/0 ╠═─".to_string();
+    let mut index_position: String = "".to_string();
 
     if let Some(index) = app.controller.index_list.file_panel {
         if content_len > 0 {

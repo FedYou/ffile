@@ -4,11 +4,8 @@ use std::time::SystemTime;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-#[derive(Debug)]
-pub enum EntryType {
-    Dir,
-    File,
-}
+use crate::fs::dir::Entry;
+use crate::fs::utils::{bytes_to_size_string, system_time_string};
 
 #[derive(Debug, Clone)]
 pub struct Metadata {
@@ -19,6 +16,12 @@ pub struct Metadata {
     pub date_modified: SystemTime,
     pub date_created: SystemTime,
     pub date_accessed: SystemTime,
+}
+
+#[derive(PartialEq, Clone)]
+pub struct SerializeMetadata {
+    pub name: String,
+    pub value: String,
 }
 
 fn permissions_mode_to_string(mode: u32) -> String {
@@ -74,4 +77,54 @@ pub fn get_metadata(entry: &DirEntry) -> Metadata {
         date_created: metadata.created().unwrap_or(SystemTime::UNIX_EPOCH),
         date_accessed: metadata.accessed().unwrap_or(SystemTime::UNIX_EPOCH),
     }
+}
+
+pub fn serialize_metadata(entry: &Entry) -> Vec<SerializeMetadata> {
+    let mut list: Vec<SerializeMetadata> = vec![];
+
+    list.push(SerializeMetadata {
+        name: "Type".to_string(),
+        value: format!(
+            "{} {}",
+            if entry.is_file { "File" } else { "Dir" },
+            if entry.is_symlink { "(symlink)" } else { "" }
+        ),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Name".to_string(),
+        value: entry.metadata.name.clone(),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Size".to_string(),
+        value: bytes_to_size_string(entry.metadata.size),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Permissions".to_string(),
+        value: entry.metadata.permissions.clone(),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Date Modified".to_string(),
+        value: system_time_string(entry.metadata.date_modified),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Date Created".to_string(),
+        value: system_time_string(entry.metadata.date_created),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Date Accessed".to_string(),
+        value: system_time_string(entry.metadata.date_accessed),
+    });
+
+    list.push(SerializeMetadata {
+        name: "Path".to_string(),
+        value: entry.path.to_str().unwrap().into(),
+    });
+
+    list
 }

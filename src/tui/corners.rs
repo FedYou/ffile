@@ -6,33 +6,48 @@ struct Corner {
     y: u16,
 }
 
-pub fn draw(frame: &mut ratatui::Frame) {
-    let term_area = frame.area();
-
+pub fn draw(
+    frame: &mut ratatui::Frame,
+    sidebar_area: Rect,
+    file_panel_area: Rect,
+    metadata_area: Rect,
+) {
     let corners: Vec<Corner> = vec![
-        // Izquierda arriba del file_panel para unirse con el sideabr
+        // Derecha arriba del file_panel para unirse con el sideabr
         Corner {
             symbol: '┤',
-            x: 18,
+            x: sidebar_area.width,
             y: 1,
         },
-        // Izquierda abajo del file_panel para unirse con el sideabr
+        // Derecha abajo del file_panel para unirse con el sideabr
         Corner {
             symbol: '┤',
-            x: 18,
-            y: term_area.height - 7,
+            x: sidebar_area.width,
+            y: sidebar_area.height - 7,
         },
         // Izquierda del header del file_panel
         Corner {
             symbol: '├',
-            x: 18,
+            x: sidebar_area.width,
             y: 2,
         },
         // Derecha del header del file_panel
         Corner {
             symbol: '┤',
-            x: term_area.width - 1,
+            x: sidebar_area.width + file_panel_area.width - 1,
             y: 2,
+        },
+        // Derecha de la metadata para conectar con el file_panel
+        Corner {
+            symbol: '┬',
+            x: metadata_area.x + 1,
+            y: metadata_area.y - 1,
+        },
+        //  Izquierda de la metadata para conectar con el file_panel
+        Corner {
+            symbol: '┬',
+            x: metadata_area.x + metadata_area.width - 1,
+            y: metadata_area.y - 1,
         },
     ];
 

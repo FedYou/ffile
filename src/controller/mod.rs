@@ -1,13 +1,16 @@
 mod utils;
 
-use crate::fs::dir::{
-    get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, nearest_existing_dir,
-    EntriesOptions, Entry, Sort, UserItem,
+use crate::fs::{
+    dir::{
+        get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, nearest_existing_dir,
+        EntriesOptions, Entry, Sort, UserItem,
+    },
+    metadata::{serialize_metadata, SerializeMetadata},
 };
+
+use arboard::Clipboard;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-
 use std::path::PathBuf;
-
 use utils::IndexController;
 
 pub use utils::IndexAction;
@@ -16,21 +19,25 @@ pub use utils::IndexAction;
 pub enum Mode {
     SideBar,
     FilePanel,
+    Metadata,
 }
 
 pub struct IndexList {
     pub sidebar: Option<usize>,
     pub file_panel: Option<usize>,
+    pub metadata: Option<usize>,
 }
 
 pub struct Controller {
     pub current_dir: PathBuf,
     pub user_dir: Vec<UserItem>,
     pub current_entries: Vec<Entry>,
+    pub current_metadata: Option<Vec<SerializeMetadata>>,
     pub index_list: IndexList,
     pub mode: Mode,
     pub watcher: RecommendedWatcher,
     index: IndexController,
+    clipboard: Clipboard,
 }
 
 impl Controller {
@@ -54,15 +61,21 @@ impl Controller {
         } else {
             None
         };
+
+        let current_metadata = get_metadata_current(&current_entries, file_panel);
+
         let _ = watcher.watch(&current_dir, RecursiveMode::NonRecursive);
+
         Self {
             watcher,
             current_dir,
             current_entries,
+            current_metadata,
             user_dir,
             index_list: IndexList {
                 sidebar: Some(0),
                 file_panel: file_panel,
+                metadata: None,
             },
             mode: Mode::SideBar,
             index: IndexController {
@@ -70,6 +83,7 @@ impl Controller {
                 len: user_dir_len,
                 ignore: vec![],
             },
+            clipboard: Clipboard::new().unwrap(),
         }
     }
 
@@ -93,6 +107,12 @@ impl Controller {
         }
 
         self.fix_open_mode_file_panel();
+        self.update_metadata_current();
+    }
+
+    fn update_metadata_current(&mut self) {
+        self.current_metadata =
+            get_metadata_current(&self.current_entries, self.index_list.file_panel)
     }
 
     fn open_directory(&mut self, path: PathBuf) {
@@ -113,6 +133,7 @@ impl Controller {
         self.current_entries = get_dir_entries(options).expect(&expect_msg);
         self.index_list.file_panel = None;
         self.fix_open_mode_file_panel();
+        self.update_metadata_current();
     }
 
     pub fn open_from_sidebar(&mut self) {
@@ -169,6 +190,7 @@ impl Controller {
             filter: None,
         };
     }
+
     fn change_index(&mut self, index_action: IndexAction) {
         match self.mode {
             Mode::SideBar => {
@@ -184,7 +206,23 @@ impl Controller {
                 self.index.set_len(self.current_entries.len());
                 self.index.set_current(self.index_list.file_panel);
                 self.index.apply_action(index_action);
-                self.index_list.file_panel = Some(self.index.current)
+                self.index_list.file_panel = Some(self.index.current);
+                self.update_metadata_current();
+            }
+            Mode::Metadata => {
+                if self.current_metadata == None {
+                    return;
+                }
+
+                self.index.set_len(
+                    self.current_metadata
+                        .clone()
+                        .expect("Can't get list len from metadata")
+                        .len(),
+                );
+                self.index.set_current(self.index_list.metadata);
+                self.index.apply_action(index_action);
+                self.index_list.metadata = Some(self.index.current);
             }
         }
     }
@@ -198,11 +236,38 @@ impl Controller {
             Mode::SideBar => {
                 self.mode = Mode::FilePanel;
             }
-            _ => {
+            Mode::FilePanel => {
                 self.mode = Mode::SideBar;
+            }
+            Mode::Metadata => {
+                self.mode = Mode::FilePanel;
+                self.index_list.metadata = None
             }
         }
     }
+
+    pub fn change_mode_metadata(&mut self) {
+        if self.mode == Mode::Metadata {
+            return;
+        }
+
+        self.mode = Mode::Metadata;
+        self.index_list.metadata = Some(0)
+    }
+
+    pub fn copy_metadata_selected(&mut self) {
+        if self.mode != Mode::Metadata {
+            return;
+        }
+
+        if let Some(metadata) = &self.current_metadata {
+            if let Some(index) = self.index_list.metadata {
+                let value = metadata.get(index).unwrap().value.as_str();
+                self.clipboard.set_text(value).unwrap();
+            }
+        }
+    }
+
     fn fix_open_mode_file_panel(&mut self) {
         // Si no esta seleccionado nada seleciona el primer archivo al cambiar
         // Solo si hay items para seleccionar
@@ -210,4 +275,17 @@ impl Controller {
             self.index_list.file_panel = Some(0)
         }
     }
+}
+
+fn get_metadata_current(
+    current_entries: &Vec<Entry>,
+    index: Option<usize>,
+) -> Option<Vec<SerializeMetadata>> {
+    if let Some(index) = index {
+        if current_entries.is_empty() {
+            return None;
+        }
+        return Some(serialize_metadata(&current_entries.get(index).unwrap()));
+    }
+    None
 }
