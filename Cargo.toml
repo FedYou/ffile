@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+arboard = "3.6.1"
 crossterm = "0.29.0"
 directories = "6.0.0"
 notify = "8.2.0"
