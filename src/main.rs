@@ -3,7 +3,6 @@ mod controller;
 mod fs;
 mod keyboard;
 mod tui;
-mod utils;
 
 use app::App;
 use controller::Controller;
