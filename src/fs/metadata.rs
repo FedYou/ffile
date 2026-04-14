@@ -126,5 +126,14 @@ pub fn serialize_metadata(entry: &Entry) -> Vec<SerializeMetadata> {
         value: entry.path.to_str().unwrap().into(),
     });
 
+    if entry.is_file {
+        if let Some(ext) = entry.metadata.ext.clone() {
+            list.push(SerializeMetadata {
+                name: "Ext".to_string(),
+                value: ext,
+            });
+        }
+    }
+
     list
 }
