@@ -6,7 +6,7 @@ use ratatui::{
 
 use crate::{app::App, controller::Mode};
 
-fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
+fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
     let path_area = area.inner(Margin {
         horizontal: 1,
         vertical: 1,
@@ -18,9 +18,13 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .title_alignment(HorizontalAlignment::Right)
         .borders(Borders::all())
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Blue));
+        .border_style(Style::default().fg(Color::Blue).add_modifier(modifier));
 
-    let path_widget = Paragraph::new(format!(" 󰉋  {}", path).fg(Color::Blue));
+    let path_widget = Paragraph::new(
+        format!(" 󰉋  {}", path)
+            .fg(Color::Blue)
+            .add_modifier(modifier),
+    );
 
     frame.render_widget(path_widget, path_area);
     frame.render_widget(file_header, area);
@@ -58,7 +62,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         }
     }
 
-    let highling_modifier: Modifier = if app.controller.mode == Mode::FilePanel {
+    let modifier: Modifier = if app.controller.mode == Mode::FilePanel {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -69,7 +73,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .title_alignment(HorizontalAlignment::Right)
         .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Green));
+        .border_style(Style::default().fg(Color::Green).add_modifier(modifier));
 
     let list_items: Vec<ListItem> = app
         .controller
@@ -85,18 +89,14 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
                 .fg(Color::Green),
         )
         .highlight_symbol(" ")
-        .highlight_style(
-            Style::default()
-                .add_modifier(highling_modifier)
-                .fg(Color::Green),
-        )
+        .highlight_style(Style::default().add_modifier(modifier).fg(Color::Green))
         .highlight_spacing(HighlightSpacing::Always);
 
     let forlder_empty_widget = Paragraph::new("Folder is empty")
         .style(Style::new().fg(Color::Green).add_modifier(Modifier::DIM));
 
     // Renderizado
-    draw_file_header(frame, file_header_area, app);
+    draw_file_header(frame, file_header_area, app, modifier);
 
     frame.render_widget(file_panel_widget, file_panel_area);
 

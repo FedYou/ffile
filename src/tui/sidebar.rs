@@ -33,7 +33,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     let mut sidebar_list_status = ListState::default();
     sidebar_list_status.select(app.controller.index_list.sidebar);
 
-    let highling_modifier: Modifier = if app.controller.mode == Mode::SideBar {
+    let modifier: Modifier = if app.controller.mode == Mode::SideBar {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -44,7 +44,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .title_alignment(HorizontalAlignment::Center)
         .borders(Borders::LEFT | Borders::TOP | Borders::BOTTOM)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Yellow));
+        .border_style(Style::default().fg(Color::Yellow).add_modifier(modifier));
 
     let sidebar_list: Vec<ListItem> = app
         .controller
@@ -61,11 +61,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
                 .fg(Color::Yellow),
         )
         .highlight_symbol(" ")
-        .highlight_style(
-            Style::default()
-                .add_modifier(highling_modifier)
-                .fg(Color::Yellow),
-        );
+        .highlight_style(Style::default().add_modifier(modifier).fg(Color::Yellow));
 
     // Renderizado
     frame.render_stateful_widget(

@@ -4,6 +4,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, TitlePosition},
 };
 
+use crate::controller::Mode;
+
 use super::App;
 
 pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
@@ -35,12 +37,18 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
 
     let mut index_position: String = "".to_string();
 
+    let modifier: Modifier = if app.controller.mode == Mode::Metadata {
+        Modifier::BOLD
+    } else {
+        Modifier::DIM
+    };
+
     // ---------
 
     let metadata_widget = Block::new()
         .borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM))
+        .border_style(Style::default().fg(Color::Cyan).add_modifier(modifier))
         .title("Metadata")
         .title_position(TitlePosition::Bottom)
         .title_alignment(HorizontalAlignment::Center);
@@ -63,8 +71,8 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
         }
 
         let metadata_list_widget = List::new(metadata_list)
-            .style(Style::default().add_modifier(Modifier::DIM))
-            .highlight_style(Style::default().bold());
+            .style(Style::default().add_modifier(Modifier::DIM).fg(Color::Cyan))
+            .highlight_style(Style::default().bold().fg(Color::Cyan));
 
         frame.render_stateful_widget(
             metadata_list_widget,
