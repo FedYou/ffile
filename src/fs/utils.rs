@@ -21,13 +21,18 @@ pub fn system_time_string(system_time: SystemTime) -> String {
 }
 
 pub fn bytes_to_size_string(bytes: u64) -> String {
-    if bytes < 1024 * 1024 {
-        return format!("{:.2} kB", bytes as f32 / 1024.0);
+    if bytes < 1024 {
+        return format!("{} B", bytes);
+    } else if bytes < 1024 * 1024 {
+        return format!("{:.2} kB", bytes as f64 / 1024.0);
     } else if bytes < 1024 * 1024 * 1024 {
-        return format!("{:.2} MB", bytes as f32 / (1024.0 * 1024.0));
+        return format!("{:.2} MB", bytes as f64 / (1024.0 * 1024.0));
     } else if bytes < 1024 * 1024 * 1024 * 1024 {
-        return format!("{:.2} GB", bytes as f32 / (1024.0 * 1024.0 * 1024.0));
+        return format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0));
+    } else {
+        return format!(
+            "{:.2} TB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0)
+        );
     }
-
-    return format!("{:.2}B", bytes);
 }
