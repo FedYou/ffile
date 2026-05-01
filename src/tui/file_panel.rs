@@ -1,12 +1,13 @@
 use ratatui::{
     layout::{Constraint, Direction, HorizontalAlignment, Layout, Margin, Rect},
     style::{Color, Modifier, Style, Stylize},
+    text::{Line, Span},
     widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph},
 };
 
 use crate::{
     app::{App, Mode},
-    tui::utils::string_to_elipse_inverse,
+    tui::utils::{get_icon_file, get_icon_file_color, string_to_elipse_inverse},
 };
 
 fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
@@ -24,7 +25,7 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modif
         .border_style(Style::default().fg(Color::Blue).add_modifier(modifier));
 
     let path_widget = Paragraph::new(format!(
-        " 󰉋  {}",
+        "   {}",
         string_to_elipse_inverse((path_area.width - 5).into(), path.to_string())
     ))
     .fg(Color::Blue)
@@ -82,7 +83,29 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     let list_items: Vec<ListItem> = app
         .current_entries
         .iter()
-        .map(|i| ListItem::new(i.metadata.name.clone()))
+        .map(|i| {
+            let icon = get_icon_file(
+                &i.metadata.name,
+                &i.metadata.ext.clone().unwrap_or("".to_string()),
+                &i.is_file,
+            );
+            let color = get_icon_file_color(
+                &i.metadata.name,
+                &i.metadata.ext.clone().unwrap_or("".to_string()),
+                &i.is_file,
+            );
+
+            let line = Line::from(vec![
+                Span::styled(
+                    icon.to_string(),
+                    Style::default().fg(color).add_modifier(Modifier::DIM),
+                ),
+                Span::raw(" "),
+                Span::raw(i.metadata.name.clone()),
+            ]);
+
+            return ListItem::new(line);
+        })
         .collect();
 
     let list_widget = List::new(list_items)
@@ -92,7 +115,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
                 .fg(Color::Green),
         )
         .highlight_symbol(" ")
-        .highlight_style(Style::default().add_modifier(modifier).fg(Color::Green))
+        .highlight_style(Style::default().add_modifier(modifier))
         .highlight_spacing(HighlightSpacing::Always);
 
     let forlder_empty_widget = Paragraph::new("Folder is empty")

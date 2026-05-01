@@ -4,7 +4,10 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState},
 };
 
-use crate::app::{App, Mode};
+use crate::{
+    app::{App, Mode},
+    tui::utils::get_icon_sidebar,
+};
 
 pub fn draw(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut App) {
     // Areas ----------
@@ -40,7 +43,7 @@ pub fn draw(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut App) {
         .user_dirs
         .clone()
         .into_iter()
-        .map(|i| ListItem::new(i.name))
+        .map(|i| ListItem::new(format!("{} {}", get_icon_sidebar(i.name.as_str()), i.name)))
         .collect();
 
     let sidebar_list_widget = List::new(sidebar_list)
