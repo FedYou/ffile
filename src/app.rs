@@ -266,9 +266,10 @@ impl<'a> App<'a> {
     pub fn open_from_sidebar(&mut self) {
         if let Some(index) = self.index_list.sidebar {
             let item = self.user_dirs.get(index).unwrap();
-
-            self.open_directory(item.path.clone().expect("REASON"));
-            self.mode = Mode::FilePanel;
+            if let Some(path) = item.path.clone() {
+                self.open_directory(path);
+                self.mode = Mode::FilePanel;
+            }
         }
     }
 

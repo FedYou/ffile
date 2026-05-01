@@ -100,30 +100,47 @@ pub fn get_user_dirs() -> Vec<UserItem> {
             name: "Home".to_string(),
         });
 
-        dirs.push(UserItem {
-            path: user_dirs.desktop_dir().map(|p| p.to_path_buf()),
-            name: "Desktop".to_string(),
-        });
-        dirs.push(UserItem {
-            path: user_dirs.download_dir().map(|p| p.to_path_buf()),
-            name: "Downloads".to_string(),
-        });
-        dirs.push(UserItem {
-            path: user_dirs.picture_dir().map(|p| p.to_path_buf()),
-            name: "Pictures".to_string(),
-        });
-        dirs.push(UserItem {
-            path: user_dirs.audio_dir().map(|p| p.to_path_buf()),
-            name: "Music".to_string(),
-        });
-        dirs.push(UserItem {
-            path: user_dirs.video_dir().map(|p| p.to_path_buf()),
-            name: "Videos".to_string(),
-        });
-        dirs.push(UserItem {
-            path: user_dirs.document_dir().map(|p| p.to_path_buf()),
-            name: "Documents".to_string(),
-        });
+        if let Some(p) = user_dirs.desktop_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Desktop".to_string(),
+            });
+        }
+
+        if let Some(p) = user_dirs.download_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Downloads".to_string(),
+            });
+        }
+
+        if let Some(p) = user_dirs.picture_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Pictures".to_string(),
+            });
+        }
+
+        if let Some(p) = user_dirs.audio_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Music".to_string(),
+            });
+        }
+
+        if let Some(p) = user_dirs.video_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Videos".to_string(),
+            });
+        }
+
+        if let Some(p) = user_dirs.document_dir() {
+            dirs.push(UserItem {
+                path: Some(p.to_path_buf()),
+                name: "Documents".to_string(),
+            });
+        }
     }
 
     dirs
