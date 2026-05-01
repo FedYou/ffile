@@ -1,24 +1,14 @@
 use ratatui::{
-    layout::{Constraint, Direction, HorizontalAlignment, Layout, Margin, Rect},
+    layout::{HorizontalAlignment, Margin, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Borders, List, ListItem, ListState},
 };
 
 use crate::app::{App, Mode};
 
-pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
+pub fn draw(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut App) {
     // Areas ----------
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(18),
-            Constraint::Min(6),
-        ])
-        .split(area);
-
-    let sidebar_area = layout[1];
-    let mut sidebar_list_area = layout[1].inner(Margin {
+    let mut sidebar_list_area = sidebar_area.inner(Margin {
         horizontal: 0,
         vertical: 1,
     });

@@ -19,6 +19,15 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
         .constraints([Constraint::Length(18), Constraint::Min(0)])
         .split(frame.area());
 
+    let main_left_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(18),
+            Constraint::Min(6),
+        ])
+        .split(main_layout[0]);
+
     let content_layout = Layout::default()
         .constraints([Constraint::Min(0), Constraint::Length(5)])
         .direction(Direction::Vertical)
@@ -29,7 +38,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
         .direction(Direction::Horizontal)
         .split(content_layout[1]);
 
-    let sidebar_area = main_layout[0];
+    let sidebar_area = main_left_layout[1];
     let file_panel_area = content_layout[0];
     let metadata_area = footer_layout[0];
 

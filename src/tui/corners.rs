@@ -23,7 +23,7 @@ pub fn draw(
         Corner {
             symbol: '┤',
             x: sidebar_area.width,
-            y: sidebar_area.height - 7,
+            y: sidebar_area.y + sidebar_area.height - 1,
         },
         // Izquierda del header del file_panel
         Corner {
