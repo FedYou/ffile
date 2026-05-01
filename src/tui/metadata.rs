@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, TitlePosition},
 };
 
-use crate::controller::Mode;
+use crate::{controller::Mode, tui::utils::string_to_elipse};
 
 use super::App;
 
@@ -58,7 +58,12 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
     if let Some(metadata) = &app.controller.current_metadata {
         let metadata_list: Vec<ListItem> = metadata
             .into_iter()
-            .map(|m| ListItem::new(format!("{}: {}", m.name, m.value)))
+            .map(|m| {
+                ListItem::new(string_to_elipse(
+                    metadata_content_area.width as usize,
+                    format!("{}: {}", m.name, m.value),
+                ))
+            })
             .collect();
 
         let mut metadata_list_state = ListState::default();

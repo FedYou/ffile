@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph},
 };
 
-use crate::{app::App, controller::Mode};
+use crate::{app::App, controller::Mode, tui::utils::string_to_elipse_inverse};
 
 fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
     let path_area = area.inner(Margin {
@@ -20,11 +20,12 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modif
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Blue).add_modifier(modifier));
 
-    let path_widget = Paragraph::new(
-        format!(" 󰉋  {}", path)
-            .fg(Color::Blue)
-            .add_modifier(modifier),
-    );
+    let path_widget = Paragraph::new(format!(
+        " 󰉋  {}",
+        string_to_elipse_inverse((path_area.width - 5).into(), path.to_string())
+    ))
+    .fg(Color::Blue)
+    .add_modifier(modifier);
 
     frame.render_widget(path_widget, path_area);
     frame.render_widget(file_header, area);

@@ -2,6 +2,7 @@ mod corners;
 mod file_panel;
 mod metadata;
 mod sidebar;
+mod utils;
 mod warning;
 
 use super::app::App;
