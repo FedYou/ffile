@@ -1,11 +1,14 @@
 mod utils;
 
-use crate::fs::{
-    dir::{
-        get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, nearest_existing_dir,
-        EntriesOptions, Entry, Sort, UserItem,
+use crate::{
+    config::get_config,
+    fs::{
+        dir::{
+            get_dir_entries, get_parent, get_user_dirs, get_user_home_dir, nearest_existing_dir,
+            EntriesOptions, Entry, UserItem,
+        },
+        metadata::{serialize_metadata, SerializeMetadata},
     },
-    metadata::{serialize_metadata, SerializeMetadata},
 };
 
 use arboard::Clipboard;
@@ -45,11 +48,14 @@ impl Controller {
         let current_dir = get_user_home_dir();
         let user_dir = get_user_dirs();
         let user_dir_len = user_dir.len();
+
+        let config = get_config().lock().unwrap();
+
         let options = EntriesOptions {
             path: current_dir.clone(),
-            sort: Sort::Date,
-            invert: true,
-            show_hidden: false,
+            sort: config.sort.clone(),
+            invert: config.invert_sort.clone(),
+            show_hidden: config.show_hidden_files.clone(),
             filter: None,
         };
 
@@ -182,11 +188,12 @@ impl Controller {
     }
 
     fn get_entries_option(&self) -> EntriesOptions {
+        let config = get_config().lock().unwrap();
         return EntriesOptions {
             path: self.current_dir.clone(),
-            sort: Sort::Date,
-            invert: true,
-            show_hidden: false,
+            sort: config.sort.clone(),
+            invert: config.invert_sort.clone(),
+            show_hidden: config.show_hidden_files,
             filter: None,
         };
     }

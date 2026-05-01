@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
 use super::metadata::{get_metadata, Metadata};
@@ -8,6 +9,8 @@ pub struct UserItem {
     pub name: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum Sort {
     Date,
     Size,
@@ -124,6 +127,13 @@ pub fn get_user_dirs() -> Vec<UserItem> {
     }
 
     dirs
+}
+
+pub fn get_config_dir() -> PathBuf {
+    let proj =
+        directories::ProjectDirs::from("com", "fedyou", "ffile").expect("ProjectDirs failed");
+
+    proj.config_dir().to_path_buf()
 }
 
 pub fn get_parent(path: PathBuf) -> PathBuf {
