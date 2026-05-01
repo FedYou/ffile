@@ -2,11 +2,11 @@ mod app;
 mod config;
 mod controller;
 mod fs;
+mod global;
 mod keyboard;
 mod tui;
 
 use app::App;
-use controller::Controller;
 use notify::{Config, RecommendedWatcher, Watcher};
 use std::sync::mpsc::channel;
 
@@ -22,12 +22,13 @@ fn main() -> Result<(), std::io::Error> {
         }
     };
 
-    let mut app = App {
-        title: "FFile".to_string(),
-        exit: false,
-        is_small: false,
-        controller: Controller::new(watcher),
-    };
+    let mut app = App::new(watcher);
+
+    // title: "FFile".to_string(),
+    // exit: false,
+    // is_small: false,
+    // controller: Controller::new(watcher),
+    // };
     let mut dirty = true;
 
     loop {

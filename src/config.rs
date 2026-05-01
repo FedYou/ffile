@@ -1,14 +1,17 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::{LazyLock, Mutex};
+use std::sync::Mutex;
 use std::{fs, sync::OnceLock};
 
-use crate::fs::dir::{get_config_dir, Sort};
+use crate::fs::dir::Sort;
+use crate::global::{CONFIG_FILE_PATH, CONFIG_PATH};
 
-pub const CONFIG_PATH: LazyLock<PathBuf> = LazyLock::new(|| get_config_dir().to_path_buf());
+static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
 
-pub const CONFIG_FILE_PATH: LazyLock<PathBuf> =
-    LazyLock::new(|| CONFIG_PATH.clone().join("config.toml").to_path_buf());
+// ------------------------------------
+// ------------------------------------
+// ------------- Config ---------------
+// ------------------------------------
+// ------------------------------------
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
@@ -39,7 +42,11 @@ fn default_icons() -> bool {
     true
 }
 
-static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
+// ------------------------------------
+// ------------------------------------
+// ----------- Functions --------------
+// ------------------------------------
+// ------------------------------------
 
 pub fn get_config() -> &'static Mutex<Config> {
     return CONFIG.get_or_init(|| Mutex::new(get_config_file()));

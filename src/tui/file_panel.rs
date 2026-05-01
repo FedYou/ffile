@@ -4,7 +4,10 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph},
 };
 
-use crate::{app::App, controller::Mode, tui::utils::string_to_elipse_inverse};
+use crate::{
+    app::{App, Mode},
+    tui::utils::string_to_elipse_inverse,
+};
 
 fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
     let path_area = area.inner(Margin {
@@ -12,7 +15,7 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modif
         vertical: 1,
     });
 
-    let path = app.controller.current_dir.to_str().unwrap();
+    let path = app.current_dir.to_str().unwrap();
 
     let file_header = Block::new()
         .title_alignment(HorizontalAlignment::Right)
@@ -51,19 +54,19 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
 
     // ---------
 
-    let content_len = app.controller.current_entries.len();
+    let content_len = app.current_entries.len();
     let mut list_state = ListState::default();
-    list_state.select(app.controller.index_list.file_panel);
+    list_state.select(app.index_list.file_panel);
 
     let mut index_position: String = "".to_string();
 
-    if let Some(index) = app.controller.index_list.file_panel {
+    if let Some(index) = app.index_list.file_panel {
         if content_len > 0 {
             index_position = format!("═╣ {}/{} ╠═─", index + 1, content_len);
         }
     }
 
-    let modifier: Modifier = if app.controller.mode == Mode::FilePanel {
+    let modifier: Modifier = if app.mode == Mode::FilePanel {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -77,7 +80,6 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .border_style(Style::default().fg(Color::Green).add_modifier(modifier));
 
     let list_items: Vec<ListItem> = app
-        .controller
         .current_entries
         .iter()
         .map(|i| ListItem::new(i.metadata.name.clone()))

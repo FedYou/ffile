@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState},
 };
 
-use crate::{app::App, controller::Mode};
+use crate::app::{App, Mode};
 
 pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     // Areas ----------
@@ -31,9 +31,9 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     let sidebar_title = format!(" {} ", app.title);
 
     let mut sidebar_list_status = ListState::default();
-    sidebar_list_status.select(app.controller.index_list.sidebar);
+    sidebar_list_status.select(app.index_list.sidebar);
 
-    let modifier: Modifier = if app.controller.mode == Mode::SideBar {
+    let modifier: Modifier = if app.mode == Mode::SideBar {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -47,8 +47,7 @@ pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .border_style(Style::default().fg(Color::Yellow).add_modifier(modifier));
 
     let sidebar_list: Vec<ListItem> = app
-        .controller
-        .user_dir
+        .user_dirs
         .clone()
         .into_iter()
         .map(|i| ListItem::new(i.name))

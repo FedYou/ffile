@@ -4,9 +4,10 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, TitlePosition},
 };
 
-use crate::{controller::Mode, tui::utils::string_to_elipse};
-
-use super::App;
+use crate::{
+    app::{App, Mode},
+    tui::utils::string_to_elipse,
+};
 
 pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
     // Areas ---------
@@ -37,7 +38,7 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
 
     let mut index_position: String = "".to_string();
 
-    let modifier: Modifier = if app.controller.mode == Mode::Metadata {
+    let modifier: Modifier = if app.mode == Mode::Metadata {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -55,7 +56,7 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
 
     frame.render_widget(metadata_widget, metadata_area);
 
-    if let Some(metadata) = &app.controller.current_metadata {
+    if let Some(metadata) = &app.current_metadata {
         let metadata_list: Vec<ListItem> = metadata
             .into_iter()
             .map(|m| {
@@ -67,9 +68,9 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
             .collect();
 
         let mut metadata_list_state = ListState::default();
-        metadata_list_state.select(app.controller.index_list.metadata);
+        metadata_list_state.select(app.index_list.metadata);
 
-        if let Some(index) = app.controller.index_list.metadata {
+        if let Some(index) = app.index_list.metadata {
             index_position = format!("═╣ {}/{} ╠═", index + 1, metadata.len());
         } else {
             index_position = format!("═╣ 1/{} ╠═", metadata.len());

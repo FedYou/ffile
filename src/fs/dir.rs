@@ -136,7 +136,7 @@ pub fn get_config_dir() -> PathBuf {
     proj.config_dir().to_path_buf()
 }
 
-pub fn get_parent(path: PathBuf) -> PathBuf {
+pub fn get_parent_dir(path: PathBuf) -> PathBuf {
     path.parent()
         // Si existe un parent lo retorna
         .map(|p| p.to_path_buf())
