@@ -40,6 +40,8 @@ pub struct App<'a> {
     pub index_list: IndexList,
     watcher: RecommendedWatcher,
     clipboard: Clipboard,
+    pub pending_open: Option<PathBuf>,
+    pub pending_open_editor: Option<PathBuf>,
 }
 
 impl<'a> App<'a> {
@@ -92,6 +94,8 @@ impl<'a> App<'a> {
             },
             watcher,
             clipboard: Clipboard::new().unwrap(),
+            pending_open: None,
+            pending_open_editor: None,
         };
     }
 
@@ -153,6 +157,9 @@ impl<'a> App<'a> {
             }
             Action::OpenFromFilePanel => {
                 self.action_open_from_file_panel();
+            }
+            Action::OpenEditor => {
+                self.action_open_editor();
             }
             Action::ToParentDirectory => {
                 self.action_to_parent_directory();
@@ -306,14 +313,22 @@ impl<'a> App<'a> {
 
             if entry.is_file {
                 let path = entry.path.clone();
-
-                std::thread::spawn(move || match open::that(path) {
-                    _ => {}
-                });
+                self.pending_open = Some(path);
                 return;
             }
 
             self.open_directory(entry.path.clone());
+        }
+    }
+
+    fn action_open_editor(&mut self) {
+        if let Some(index) = self.index_list.file_panel {
+            let entry = self.current_entries.get(index).unwrap();
+            if entry.is_file {
+                let path = entry.path.clone();
+                self.pending_open_editor = Some(path);
+                return;
+            }
         }
     }
 

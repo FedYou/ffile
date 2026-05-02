@@ -4,6 +4,7 @@ mod controller;
 mod fs;
 mod global;
 mod keyboard;
+mod open_file;
 mod tui;
 
 use app::App;
@@ -23,12 +24,6 @@ fn main() -> Result<(), std::io::Error> {
     };
 
     let mut app = App::new(watcher);
-
-    // title: "FFile".to_string(),
-    // exit: false,
-    // is_small: false,
-    // controller: Controller::new(watcher),
-    // };
     let mut dirty = true;
 
     loop {
@@ -62,9 +57,48 @@ fn main() -> Result<(), std::io::Error> {
             }
         };
 
+        if let Some(path) = app.pending_open_editor.take() {
+            run_external_editor(&mut terminal, || {
+                open_file::editor(path.to_str().unwrap());
+            });
+            dirty = true
+        }
+
+        if let Some(path) = app.pending_open.take() {
+            let mime = mime_guess::from_path(&path).first_or_text_plain();
+
+            if mime.type_() == "text" {
+                run_external_editor(&mut terminal, || {
+                    open_file::editor(path.to_str().unwrap());
+                });
+            } else {
+                open_file::file(path);
+            }
+
+            dirty = true;
+        }
+
         let _ = terminal.draw(|frame| app.render(frame));
     }
 
     ratatui::restore();
     return Ok(());
+}
+
+fn run_external_editor<F: FnOnce()>(
+    terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>,
+    f: F,
+) {
+    let _ = crossterm::terminal::disable_raw_mode();
+
+    f();
+
+    // Volver al TUI
+    let _ = crossterm::terminal::enable_raw_mode();
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::terminal::EnterAlternateScreen,
+        crossterm::cursor::Hide,
+    );
+    let _ = terminal.clear();
 }

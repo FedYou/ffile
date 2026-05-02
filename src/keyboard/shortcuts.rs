@@ -13,6 +13,7 @@ pub enum Action {
     CopyMetadata,
     OpenFromSideBar,
     OpenFromFilePanel,
+    OpenEditor,
     ToParentDirectory,
     None,
 }
@@ -65,6 +66,11 @@ pub static SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('m'),
         action: Action::ChangeModeMetadata,
+        mode: Mode::FilePanel,
+    },
+    Shortcut {
+        key: KeyCode::Char('e'),
+        action: Action::OpenEditor,
         mode: Mode::FilePanel,
     },
     // -------------------------

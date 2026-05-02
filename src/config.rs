@@ -24,6 +24,8 @@ pub struct Config {
     pub show_hidden_files: bool,
     #[serde(default = "default_icons")]
     pub icons: bool,
+    #[serde(default = "default_editor")]
+    pub editor: String,
 }
 
 fn default_sort() -> Sort {
@@ -40,6 +42,11 @@ fn default_show_hidden_files() -> bool {
 
 fn default_icons() -> bool {
     true
+}
+
+// Editor por defecto: helix
+fn default_editor() -> String {
+    "hx".to_string()
 }
 
 // ------------------------------------
