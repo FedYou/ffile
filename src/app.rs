@@ -142,20 +142,26 @@ impl<'a> App<'a> {
         }
 
         match action {
-            Action::Up => {
+            Action::MoveUp => {
                 self.action_move_up();
             }
-            Action::Down => {
+            Action::MoveDown => {
                 self.action_move_down();
             }
-            Action::Open => {
-                self.action_open();
+            Action::OpenFromSideBar => {
+                self.action_open_from_sidebar();
             }
-            Action::ToParent => {
+            Action::OpenFromFilePanel => {
+                self.action_open_from_file_panel();
+            }
+            Action::ToParentDirectory => {
                 self.action_to_parent_directory();
             }
-            Action::ChangeModeToggle => {
-                self.action_change_mode_toggle();
+            Action::ChangeModeFromSideBar => self.mode = Mode::FilePanel,
+            Action::ChangeModeFromFilePanel => self.mode = Mode::SideBar,
+            Action::ChangeModeFromMetadata => {
+                self.mode = Mode::FilePanel;
+                self.index_list.metadata = None
             }
             Action::ChangeModeMetadata => {
                 self.action_change_mode_metadata();
@@ -263,33 +269,6 @@ impl<'a> App<'a> {
         self.update_metadata_current();
     }
 
-    pub fn open_from_sidebar(&mut self) {
-        if let Some(index) = self.index_list.sidebar {
-            let item = self.user_dirs.get(index).unwrap();
-            if let Some(path) = item.path.clone() {
-                self.open_directory(path);
-                self.mode = Mode::FilePanel;
-            }
-        }
-    }
-
-    fn open_from_file_panel(&mut self) {
-        if let Some(index) = self.index_list.file_panel {
-            let entry = self.current_entries.get(index).unwrap();
-
-            if entry.is_file {
-                let path = entry.path.clone();
-
-                std::thread::spawn(move || match open::that(path) {
-                    _ => {}
-                });
-                return;
-            }
-
-            self.open_directory(entry.path.clone());
-        }
-    }
-
     // ------------------------------------
     // ------------------------------------
     // ------------- Actions --------------
@@ -311,30 +290,30 @@ impl<'a> App<'a> {
         }
     }
 
-    fn action_open(&mut self) {
-        match self.mode {
-            Mode::SideBar => {
-                self.open_from_sidebar();
+    pub fn action_open_from_sidebar(&mut self) {
+        if let Some(index) = self.index_list.sidebar {
+            let item = self.user_dirs.get(index).unwrap();
+            if let Some(path) = item.path.clone() {
+                self.open_directory(path);
+                self.mode = Mode::FilePanel;
             }
-            Mode::FilePanel => {
-                self.open_from_file_panel();
-            }
-            _ => {}
         }
     }
 
-    fn action_change_mode_toggle(&mut self) {
-        match self.mode {
-            Mode::SideBar => {
-                self.mode = Mode::FilePanel;
+    fn action_open_from_file_panel(&mut self) {
+        if let Some(index) = self.index_list.file_panel {
+            let entry = self.current_entries.get(index).unwrap();
+
+            if entry.is_file {
+                let path = entry.path.clone();
+
+                std::thread::spawn(move || match open::that(path) {
+                    _ => {}
+                });
+                return;
             }
-            Mode::FilePanel => {
-                self.mode = Mode::SideBar;
-            }
-            Mode::Metadata => {
-                self.mode = Mode::FilePanel;
-                self.index_list.metadata = None
-            }
+
+            self.open_directory(entry.path.clone());
         }
     }
 

@@ -56,7 +56,7 @@ fn main() -> Result<(), std::io::Error> {
         // Espera 50 milisegundo si no pasa nada sigue el loop sin bloquer la app
         if crossterm::event::poll(std::time::Duration::from_millis(50))? {
             if let crossterm::event::Event::Key(key) = crossterm::event::read()? {
-                let action = keyboard::get_action(key.code, None);
+                let action = keyboard::get_action(&app, key.code, None);
 
                 app.execute_action(action);
             }
