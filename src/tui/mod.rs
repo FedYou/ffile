@@ -1,16 +1,21 @@
 mod corners;
 mod file_panel;
 mod metadata;
+mod screen;
 mod sidebar;
 mod utils;
-mod warning;
 
 use super::app::App;
 use ratatui::layout::{Constraint, Direction, Layout};
 
 pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     if app.is_small {
-        warning::draw(frame);
+        screen::draw_warning_small(frame);
+        return;
+    }
+
+    if app.pending_open_editor.is_some() {
+        screen::draw_opening_editor(frame);
         return;
     }
 

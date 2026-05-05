@@ -57,20 +57,11 @@ fn main() -> Result<(), std::io::Error> {
             }
         };
 
-        if let Some(path) = app.pending_open_editor.take() {
-            run_external_editor(&mut terminal, || {
-                open_file::editor(path.to_str().unwrap());
-            });
-            dirty = true
-        }
-
         if let Some(path) = app.pending_open.take() {
             let mime = mime_guess::from_path(&path).first_or_text_plain();
 
             if mime.type_() == "text" {
-                run_external_editor(&mut terminal, || {
-                    open_file::editor(path.to_str().unwrap());
-                });
+                app.pending_open_editor = Some(path)
             } else {
                 open_file::file(path);
             }
@@ -79,22 +70,28 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         let _ = terminal.draw(|frame| app.render(frame));
+
+        //Si hay una ruta pendiente el loop no continua y renderiza el editor,
+        // cuando el editor se cierra el loop continua,donde vuelve renderiza el tui normalmente
+        if let Some(path) = app.pending_open_editor.take() {
+            run_external_app(&mut terminal, || {
+                open_file::editor(path.to_str().unwrap());
+            });
+            dirty = true
+        }
     }
 
     ratatui::restore();
     return Ok(());
 }
 
-fn run_external_editor<F: FnOnce()>(
+fn run_external_app<F: FnOnce()>(
     terminal: &mut ratatui::Terminal<impl ratatui::backend::Backend>,
     f: F,
 ) {
-    let _ = crossterm::terminal::disable_raw_mode();
-
     f();
 
     // Volver al TUI
-    let _ = crossterm::terminal::enable_raw_mode();
     let _ = crossterm::execute!(
         std::io::stdout(),
         crossterm::terminal::EnterAlternateScreen,

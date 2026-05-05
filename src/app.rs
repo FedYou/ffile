@@ -10,7 +10,7 @@ use crate::fs::dir::{
     EntriesOptions, Entry, UserItem,
 };
 use crate::fs::metadata::{serialize_metadata, SerializeMetadata};
-use crate::global;
+use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
 use crate::keyboard::Action;
 use crate::tui;
 
@@ -102,7 +102,7 @@ impl<'a> App<'a> {
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
         let term_area = frame.area();
 
-        if term_area.width < 80 || term_area.height < 18 {
+        if term_area.width < MIN_WIDTH_APP || term_area.height < MIN_HEIGHT_APP {
             self.is_small = true;
         } else {
             self.is_small = false
