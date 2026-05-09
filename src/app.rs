@@ -1,15 +1,17 @@
+use std::fs::{create_dir_all, File};
 use std::path::PathBuf;
 
 use arboard::Clipboard;
+use crossterm::event::KeyCode;
 use notify::{RecommendedWatcher, Watcher};
 
-use crate::config::get_config;
-use crate::controller::{IndexAction, IndexController};
-use crate::fs::dir::{
+use crate::_fs::dir::{
     get_dir_entries, get_parent_dir, get_user_dirs, get_user_home_dir, nearest_existing_dir,
     EntriesOptions, Entry, UserItem,
 };
-use crate::fs::metadata::{serialize_metadata, SerializeMetadata};
+use crate::_fs::metadata::{serialize_metadata, SerializeMetadata};
+use crate::config::get_config;
+use crate::controller::{IndexAction, IndexController};
 use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
 use crate::keyboard::Action;
 use crate::tui;
@@ -19,6 +21,7 @@ pub enum Mode {
     SideBar,
     FilePanel,
     Metadata,
+    Create,
 }
 
 pub struct IndexList {
@@ -42,6 +45,9 @@ pub struct App<'a> {
     clipboard: Clipboard,
     pub pending_open: Option<PathBuf>,
     pub pending_open_editor: Option<PathBuf>,
+    pub input: Vec<char>,
+    pub input_index: usize,
+    pub create_error: bool,
 }
 
 impl<'a> App<'a> {
@@ -96,6 +102,9 @@ impl<'a> App<'a> {
             clipboard: Clipboard::new().unwrap(),
             pending_open: None,
             pending_open_editor: None,
+            input: vec![],
+            input_index: 0,
+            create_error: false,
         };
     }
 
@@ -176,8 +185,88 @@ impl<'a> App<'a> {
             Action::CopyMetadata => {
                 self.action_copy_metadata_selected();
             }
+            Action::OpenCreate => {
+                self.mode = Mode::Create;
+                self.input_index = 0;
+                self.clear_input();
+            }
+            Action::AcceptCreate => {
+                self.action_create_accept();
+            }
+            Action::CancelCreate => {
+                if self.create_error {
+                    self.create_error = false
+                }
+
+                self.mode = Mode::FilePanel;
+                self.input_index = 0;
+                self.clear_input();
+            }
+            Action::MoveInputCursorLeft => {
+                self.action_move_input_cursor_left();
+            }
+            Action::MoveInputCursorRight => {
+                self.action_move_input_cursor_right();
+            }
+            Action::RemoveInputChar => {
+                self.action_remove_input_char();
+            }
             _ => {}
         }
+    }
+
+    // ------------------------------------
+    // ------------------------------------
+    // ---------- Input Functions ---------
+    // ------------------------------------
+    // ------------------------------------
+
+    pub fn execute_input_key(&mut self, key: KeyCode) {
+        match self.mode {
+            Mode::Create => {
+                if let Some(ch) = key.as_char() {
+                    self.set_input_char(ch);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn execute_input_paste(&mut self, text: String) {
+        text.chars().for_each(|ch| self.set_input_char(ch));
+    }
+
+    fn set_input_char(&mut self, ch: char) {
+        if ch != '\n' {
+            self.input.insert(self.input_index, ch);
+            self.input_index += 1
+        }
+    }
+
+    fn action_remove_input_char(&mut self) {
+        if self.input_index > 0 {
+            self.input.remove(self.input_index - 1);
+            self.input_index -= 1
+        }
+    }
+
+    fn action_move_input_cursor_left(&mut self) {
+        if self.input_index > 0 {
+            self.input_index -= 1
+        }
+    }
+
+    fn action_move_input_cursor_right(&mut self) {
+        if self.input_index < self.input.len() {
+            self.input_index += 1
+        }
+    }
+
+    pub fn get_input_to_string(&mut self) -> String {
+        self.input.iter().collect()
+    }
+    fn clear_input(&mut self) {
+        self.input.clear();
     }
 
     // ------------------------------------
@@ -250,6 +339,7 @@ impl<'a> App<'a> {
                 self.index.apply_action(index_action);
                 self.index_list.metadata = Some(self.index.current);
             }
+            _ => {}
         }
     }
 
@@ -351,6 +441,51 @@ impl<'a> App<'a> {
                 let value = metadata.get(index).unwrap().value.as_str();
                 self.clipboard.set_text(value).unwrap();
             }
+        }
+    }
+    fn action_create_accept(&mut self) {
+        if self.create_error {
+            return;
+        }
+
+        let input_content = self.get_input_to_string();
+
+        if input_content.trim().is_empty() {
+            self.mode = Mode::FilePanel;
+            self.clear_input();
+            self.input_index = 0;
+            return;
+        }
+
+        let join_dir = self.current_dir.join(input_content.clone());
+
+        // Create dir
+        if input_content.ends_with("/") {
+            match create_dir_all(join_dir) {
+                Err(_) => self.create_error = true,
+                Ok(_) => self.create_error = false,
+            }
+
+            return;
+        }
+
+        // Create file
+        let parent = get_parent_dir(join_dir.clone());
+
+        match create_dir_all(parent) {
+            Err(_) => self.create_error = true,
+            Ok(_) => self.create_error = false,
+        }
+
+        match File::create(join_dir) {
+            Err(_) => self.create_error = true,
+            Ok(_) => self.create_error = false,
+        }
+
+        if !self.create_error {
+            self.mode = Mode::FilePanel;
+            self.clear_input();
+            self.input_index = 0
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-use crate::fs::dir::get_config_dir;
+use crate::_fs::dir::get_config_dir;
 
 pub const TITLE: &str = "FFile";
 

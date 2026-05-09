@@ -1,5 +1,7 @@
 mod corners;
+mod create;
 mod file_panel;
+mod input;
 mod metadata;
 mod screen;
 mod sidebar;
@@ -54,4 +56,6 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     metadata::draw(frame, metadata_area, app);
 
     corners::draw(frame, sidebar_area, file_panel_area, metadata_area);
+
+    create::draw(frame, app);
 }

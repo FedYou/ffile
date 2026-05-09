@@ -15,6 +15,12 @@ pub enum Action {
     OpenFromFilePanel,
     OpenEditor,
     ToParentDirectory,
+    OpenCreate,
+    CancelCreate,
+    AcceptCreate,
+    MoveInputCursorLeft,
+    MoveInputCursorRight,
+    RemoveInputChar,
     None,
 }
 
@@ -71,6 +77,11 @@ pub static SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('e'),
         action: Action::OpenEditor,
+        mode: Mode::FilePanel,
+    },
+    Shortcut {
+        key: KeyCode::Char('n'),
+        action: Action::OpenCreate,
         mode: Mode::FilePanel,
     },
     // -------------------------
@@ -133,5 +144,33 @@ pub static SHORTCUTS: &[Shortcut] = &[
         key: KeyCode::Char(' '),
         action: Action::CopyMetadata,
         mode: Mode::Metadata,
+    },
+    // -------------------------
+    // ----- Create Mode
+    // -------------------------
+    Shortcut {
+        key: KeyCode::Esc,
+        action: Action::CancelCreate,
+        mode: Mode::Create,
+    },
+    Shortcut {
+        key: KeyCode::Enter,
+        action: Action::AcceptCreate,
+        mode: Mode::Create,
+    },
+    Shortcut {
+        key: KeyCode::Left,
+        action: Action::MoveInputCursorLeft,
+        mode: Mode::Create,
+    },
+    Shortcut {
+        key: KeyCode::Right,
+        action: Action::MoveInputCursorRight,
+        mode: Mode::Create,
+    },
+    Shortcut {
+        key: KeyCode::Backspace,
+        action: Action::RemoveInputChar,
+        mode: Mode::Create,
     },
 ];

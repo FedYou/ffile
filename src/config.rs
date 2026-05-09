@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::{fs, sync::OnceLock};
 
-use crate::fs::dir::Sort;
+use crate::_fs::dir::Sort;
 use crate::global::{CONFIG_FILE_PATH, CONFIG_PATH};
 
 static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();

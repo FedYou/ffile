@@ -4,8 +4,8 @@ use std::time::SystemTime;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::fs::dir::Entry;
-use crate::fs::utils::{bytes_to_size_string, system_time_string};
+use crate::_fs::dir::Entry;
+use crate::_fs::utils::{bytes_to_size_string, system_time_string};
 
 #[derive(Debug, Clone)]
 pub struct Metadata {
