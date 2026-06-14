@@ -16,7 +16,8 @@ use notify::{Config, RecommendedWatcher, Watcher};
 use std::io::stdout;
 use std::sync::mpsc::channel;
 
-fn main() -> Result<(), std::io::Error> {
+#[tokio::main]
+async fn main() -> Result<(), std::io::Error> {
     let mut terminal = ratatui::init();
     execute!(stdout(), EnableBracketedPaste)?;
 
