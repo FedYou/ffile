@@ -7,49 +7,57 @@ use ratatui::{
 
 use crate::app::App;
 
-pub struct InputStyles {
-    pub cursor: Color,
-    pub fg: Color,
-    pub modifier: Modifier,
+pub struct InputStyle {
+    pub cursor_color: Color,
+    pub foreground_color: Color,
+    pub text_modifier: Modifier,
 }
 
-pub fn draw_input(
+pub fn render_input(
     frame: &mut ratatui::Frame,
     app: &mut App,
     area: Rect,
-    input_styles: InputStyles,
+    input_style: InputStyle,
 ) {
-    let width = area.width as usize;
-    let scroll = if app.input_index >= width {
-        app.input_index - width + 1
+    let visible_width = area.width as usize;
+    let scroll_offset = if app.input.position >= visible_width {
+        app.input.position - visible_width + 1
     } else {
         0
     };
 
-    let cursor = app.input_index.saturating_sub(scroll);
-    let visible = app.input.iter().skip(scroll).take(width);
+    let cursor_pos = app.input.position.saturating_sub(scroll_offset);
+    let visible_chars = app
+        .input
+        .content
+        .iter()
+        .skip(scroll_offset)
+        .take(visible_width);
 
-    let mut lines: Vec<Span> = visible
+    let mut spans: Vec<Span> = visible_chars
         .enumerate()
         .map(|(i, c)| {
-            if i == cursor {
-                Span::styled(c.to_string(), Style::default().bg(input_styles.cursor))
+            if i == cursor_pos {
+                Span::styled(c.to_string(), Style::default().bg(input_style.cursor_color))
             } else {
                 Span::styled(
                     c.to_string(),
                     Style::default()
-                        .fg(input_styles.fg)
-                        .add_modifier(input_styles.modifier),
+                        .fg(input_style.foreground_color)
+                        .add_modifier(input_style.text_modifier),
                 )
             }
         })
         .collect();
 
-    if app.input_index == app.input.len() {
-        lines.push(Span::styled(" ", Style::default().bg(input_styles.cursor)))
+    if app.input.position == app.input.content.len() {
+        spans.push(Span::styled(
+            " ",
+            Style::default().bg(input_style.cursor_color),
+        ))
     }
 
-    let widget = Paragraph::new(Line::from(lines));
+    let input_paragraph = Paragraph::new(Line::from(spans));
 
-    frame.render_widget(widget, area);
+    frame.render_widget(input_paragraph, area);
 }

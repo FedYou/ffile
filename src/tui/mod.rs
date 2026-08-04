@@ -10,14 +10,14 @@ mod utils;
 use super::app::App;
 use ratatui::layout::{Constraint, Direction, Layout};
 
-pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
+pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
     if app.is_small {
-        screen::draw_warning_small(frame);
+        screen::render_small_screen_warning(frame);
         return;
     }
 
-    if app.pending_open_editor.is_some() {
-        screen::draw_opening_editor(frame);
+    if app.pending_external_actions.open_with_editor.is_some() {
+        screen::render_opening_editor(frame);
         return;
     }
 
@@ -49,13 +49,13 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     let file_panel_area = content_layout[0];
     let metadata_area = footer_layout[0];
 
-    sidebar::draw(frame, sidebar_area, app);
+    sidebar::render_sidebar(frame, sidebar_area, app);
 
-    file_panel::draw(frame, file_panel_area, app);
+    file_panel::render_file_panel(frame, file_panel_area, app);
 
-    metadata::draw(frame, metadata_area, app);
+    metadata::render_metadata(frame, metadata_area, app);
 
-    corners::draw(frame, sidebar_area, file_panel_area, metadata_area);
+    corners::render_panel_corners(frame, sidebar_area, file_panel_area, metadata_area);
 
-    create::draw(frame, app);
+    create::render_create_popup(frame, app);
 }

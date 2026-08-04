@@ -1,7 +1,9 @@
 use std::time::SystemTime;
 
-use time::{format_description::parse, OffsetDateTime, UtcOffset};
+use time::{OffsetDateTime, UtcOffset, format_description::parse};
 
+/// Convierte un `SystemTime` a un string legible en la zona horaria local,
+/// por ejemplo `Sun, 2 Aug 2026 12:34:56`.
 pub fn system_time_string(system_time: SystemTime) -> String {
     let format =
         parse("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second]")
@@ -20,6 +22,8 @@ pub fn system_time_string(system_time: SystemTime) -> String {
     );
 }
 
+/// Convierte una cantidad de bytes a una unidad legible (B, kB, MB, GB, TB),
+/// por ejemplo `1536` -> `1.50 kB`.
 pub fn bytes_to_size_string(bytes: u64) -> String {
     if bytes < 1024 {
         return format!("{} B", bytes);

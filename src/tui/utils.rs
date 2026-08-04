@@ -1,25 +1,28 @@
 use ratatui::style::Color;
 
-pub fn string_to_elipse(max_len: usize, text: String) -> String {
-    if text.chars().count() > max_len {
-        let truncated: String = text.chars().take(max_len.saturating_sub(3)).collect();
+pub fn truncate_with_ellipsis(max_chars: usize, text: String) -> String {
+    if text.chars().count() > max_chars {
+        let truncated: String = text.chars().take(max_chars.saturating_sub(3)).collect();
 
         return format!("{}...", truncated.trim());
     }
     text
 }
 
-pub fn string_to_elipse_inverse(max_len: usize, text: String) -> String {
-    let len = text.chars().count();
-    if len > max_len {
-        let truncated: String = text.chars().skip(len - max_len.saturating_sub(3)).collect();
+pub fn truncate_with_leading_ellipsis(max_chars: usize, text: String) -> String {
+    let char_count = text.chars().count();
+    if char_count > max_chars {
+        let truncated: String = text
+            .chars()
+            .skip(char_count - max_chars.saturating_sub(3))
+            .collect();
 
         return format!("...{}", truncated.trim());
     }
     text
 }
 
-pub fn get_icon_sidebar(name: &str) -> char {
+pub fn get_sidebar_icon(name: &str) -> char {
     match name {
         "Home" => '\u{f02dc}',      // 󰋜
         "Desktop" => '\u{f01c5}',   // 󰇅
@@ -34,8 +37,8 @@ pub fn get_icon_sidebar(name: &str) -> char {
 
 // Lista de iconos extradidos de exa: https://github.com/ogham/exa/blob/master/src/output/icons.rs
 
-pub fn get_icon_file(name: &str, ext: &str, is_file: &bool) -> char {
-    match name {
+pub fn get_file_icon(file_name: &str, extension: &str, is_file: &bool) -> char {
+    match file_name {
         ".Trash" => return '\u{f1f8}',             // 
         ".atom" => return '\u{e764}',              // 
         ".bashprofile" => return '\u{e615}',       // 
@@ -90,7 +93,7 @@ pub fn get_icon_file(name: &str, ext: &str, is_file: &bool) -> char {
         return '\u{f07b}'; // 
     }
 
-    match ext {
+    match extension {
         "ai" => '\u{e7b4}',             // 
         "android" => '\u{e70e}',        // 
         "apk" => '\u{e70e}',            // 
@@ -352,8 +355,8 @@ pub fn get_icon_file(name: &str, ext: &str, is_file: &bool) -> char {
     }
 }
 
-pub fn get_icon_file_color(name: &str, ext: &str, is_file: &bool) -> Color {
-    match name {
+pub fn get_file_icon_color(file_name: &str, extension: &str, is_file: &bool) -> Color {
+    match file_name {
         ".Trash" => return Color::DarkGray,
         ".atom" => return Color::Green,
         ".bashprofile" => return Color::Green,
@@ -410,7 +413,7 @@ pub fn get_icon_file_color(name: &str, ext: &str, is_file: &bool) -> Color {
     }
 
     // File extensions
-    match ext {
+    match extension {
         // Images
         "ai" => Color::Yellow,
         "avif" | "bmp" | "gif" | "ico" | "image" | "j2c" | "j2k" | "jfi" | "jfif" | "jif"

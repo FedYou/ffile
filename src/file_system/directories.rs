@@ -1,14 +1,17 @@
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
-use super::metadata::{get_metadata, Metadata};
+use super::metadata::{Metadata, get_metadata};
 
+/// Elemento del sidebar: un bookmark con su nombre visible y su ruta.
+/// La ruta puede ser `None` si el directorio no existe en el sistema.
 #[derive(Clone)]
 pub struct UserItem {
     pub path: Option<PathBuf>,
     pub name: String,
 }
 
+/// Criterio de orden de las entradas de un directorio.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Sort {
@@ -17,6 +20,8 @@ pub enum Sort {
     Name,
 }
 
+/// Opciones para listar un directorio: qué directorio leer, cómo ordenar
+/// y filtrar, y si se muestran archivos ocultos.
 pub struct EntriesOptions {
     pub path: PathBuf,
     pub sort: Sort,
@@ -25,6 +30,8 @@ pub struct EntriesOptions {
     pub filter: Option<String>,
 }
 
+/// Una entrada dentro de un directorio (archivo o subdirectorio), con su
+/// ruta, si es symlink/archivo y su metadata.
 #[derive(Clone)]
 pub struct Entry {
     pub path: PathBuf,
@@ -33,6 +40,8 @@ pub struct Entry {
     pub metadata: Metadata,
 }
 
+/// Lee el directorio indicado en `options` y devuelve sus entradas
+/// ordenadas y filtradas (según orden, invertido, ocultos y filtro).
 pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::Error> {
     let mut entries: Vec<Entry> = fs::read_dir(options.path)?
         .filter_map(|e| e.ok())
@@ -63,89 +72,83 @@ pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::E
         entries.reverse();
     }
 
+    // → Al final, los directorios van siempre antes que los archivos.
     entries.sort_by_key(|e| {
         if e.is_file {
-            //file
+            // → Archivo: va después de los directorios
             return 1;
         }
-        //dir
+        // → Directorio: va primero
         0
     });
 
     if !options.show_hidden {
-        //hidden
+        // → Filtra los archivos ocultos (empiezan con ".").
         entries.retain(|e| !e.metadata.name.starts_with("."));
     }
 
     if let Some(filter_str) = &options.filter {
+        // → Filtra por nombre si se indicó un filtro de búsqueda.
         entries.retain(|e| e.metadata.name.contains(filter_str));
     }
 
     Ok(entries)
 }
 
-pub fn get_user_home_dir() -> PathBuf {
+/// Devuelve el directorio home del usuario actual.
+fn get_user_home_dir() -> PathBuf {
     directories::UserDirs::new()
         .expect("User's HOME folder not found")
         .home_dir()
         .to_path_buf()
 }
 
-pub fn get_user_dirs() -> Vec<UserItem> {
-    let mut dirs: Vec<UserItem> = Vec::new();
+/// Devuelve el directorio de trabajo actual; si falla, el home del usuario.
+pub fn get_pwd() -> PathBuf {
+    match std::env::current_dir() {
+        Ok(p) => p,
+        Err(_) => get_user_home_dir(),
+    }
+}
+
+/// Construye la lista de bookmarks del sidebar a partir de los directorios
+/// del usuario (Home, Desktop, Downloads, etc.), incluyendo solo los que
+/// existen en el sistema.
+pub fn get_bookmarks() -> Vec<(String, Option<PathBuf>)> {
+    let mut bookmarks: Vec<(String, Option<PathBuf>)> = Vec::new();
 
     if let Some(user_dirs) = directories::UserDirs::new() {
-        dirs.push(UserItem {
-            path: Some(user_dirs.home_dir().to_path_buf()),
-            name: "Home".to_string(),
-        });
+        bookmarks.push(("Home".to_string(), Some(user_dirs.home_dir().to_path_buf())));
 
         if let Some(p) = user_dirs.desktop_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Desktop".to_string(),
-            });
+            bookmarks.push(("Desktop".to_string(), Some(p.to_path_buf())));
         }
 
         if let Some(p) = user_dirs.download_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Downloads".to_string(),
-            });
+            bookmarks.push(("Downloads".to_string(), Some(p.to_path_buf())));
         }
 
         if let Some(p) = user_dirs.picture_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Pictures".to_string(),
-            });
+            bookmarks.push(("Pictures".to_string(), Some(p.to_path_buf())));
         }
 
         if let Some(p) = user_dirs.audio_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Music".to_string(),
-            });
+            bookmarks.push(("Music".to_string(), Some(p.to_path_buf())));
         }
 
         if let Some(p) = user_dirs.video_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Videos".to_string(),
-            });
+            bookmarks.push(("Videos".to_string(), Some(p.to_path_buf())));
         }
 
         if let Some(p) = user_dirs.document_dir() {
-            dirs.push(UserItem {
-                path: Some(p.to_path_buf()),
-                name: "Documents".to_string(),
-            });
+            bookmarks.push(("Documents".to_string(), Some(p.to_path_buf())));
         }
     }
 
-    dirs
+    bookmarks
 }
 
+/// Devuelve el directorio de configuración de la app (depende del SO).
 pub fn get_config_dir() -> PathBuf {
     let proj =
         directories::ProjectDirs::from("com", "fedyou", "ffile").expect("ProjectDirs failed");
@@ -153,17 +156,21 @@ pub fn get_config_dir() -> PathBuf {
     proj.config_dir().to_path_buf()
 }
 
+/// Devuelve el directorio padre de `path`. Si la ruta no tiene padre
+/// (ej. la raíz), devuelve la misma ruta.
 pub fn get_parent_dir(path: PathBuf) -> PathBuf {
     path.parent()
-        // Si existe un parent lo retorna
+        // Si tiene directorio padre, lo retorna
         .map(|p| p.to_path_buf())
-        // De lo contrario devuelve el mismo directorio ingresado
+        // De lo contrario, devuelve la misma ruta ingresada
         .unwrap_or(path)
 }
 
-pub fn nearest_existing_dir(path: PathBuf) -> PathBuf {
-    // Valida si la ruta ingresada existe
-
+/// Comprueba que `path` sea un directorio válido. Si no existe (o es un
+/// archivo), sube recursivamente hasta encontrar un directorio existente.
+/// Se usa para que la app nunca quede apuntando a una ruta inexistente.
+pub fn resolve_existing_dir(path: PathBuf) -> PathBuf {
+    // Valida si la ruta actual existe y es un directorio
     let mut is_invalid = false;
 
     match fs::metadata(&path) {
@@ -178,8 +185,8 @@ pub fn nearest_existing_dir(path: PathBuf) -> PathBuf {
     if is_invalid {
         return path
             .parent()
-            // Se llama recursivamente hasta que la ruta sea valida
-            .map(|p| nearest_existing_dir(p.to_path_buf()))
+            // → Sube un nivel y vuelve a intentar, hasta dar con una ruta válida
+            .map(|p| resolve_existing_dir(p.to_path_buf()))
             .unwrap_or(path);
     }
 

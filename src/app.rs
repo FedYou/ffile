@@ -1,113 +1,211 @@
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
+use std::io::Error;
 use std::path::PathBuf;
 
+use crate::file_system::metadata::get_serialize_metadata;
+use crate::index::SelectionIndex;
+use crate::input::Input;
 use arboard::Clipboard;
 use crossterm::event::KeyCode;
 use notify::{RecommendedWatcher, Watcher};
 
-use crate::_fs::dir::{
-    get_dir_entries, get_parent_dir, get_user_dirs, get_user_home_dir, nearest_existing_dir,
-    EntriesOptions, Entry, UserItem,
-};
-use crate::_fs::metadata::{serialize_metadata, SerializeMetadata};
 use crate::config::get_config;
-use crate::controller::{IndexAction, IndexController};
+use crate::file_system::directories::{
+    EntriesOptions, Entry, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd,
+    resolve_existing_dir,
+};
 use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
-use crate::keyboard::Action;
+use crate::keymap::Action;
 use crate::tui;
+use enum_map::{Enum, EnumMap};
 
-#[derive(PartialEq)]
-pub enum Mode {
+// ─── Enums y Structs  ────────────────────────────────────────
+
+/// Lista de los Paneles de la app
+#[derive(PartialEq, Enum, Copy, Clone)]
+pub enum Panel {
+    /// Sidebar con los bookmarks (Home, Desktop, ...).
     SideBar,
+    /// Lista de archivos y directorios del directorio actual.
     FilePanel,
+    /// Metadata del elemento seleccionado.
     Metadata,
+    /// Popup para crear archivos/directorios.
     Create,
 }
 
-pub struct IndexList {
-    pub sidebar: Option<usize>,
-    pub file_panel: Option<usize>,
-    pub metadata: Option<usize>,
+/// Estado del panel para crear de archivos/directorios.
+pub enum CreateState {
+    /// Popup cerrado.
+    Closed,
+    /// Popup abierto, con el input activo para escribir
+    Editing,
+    /// Ocurrió un error al crear; guarda el error para mostrarlo.
+    Error(Error),
 }
 
-pub struct App<'a> {
-    pub title: &'a str,
-    pub exit: bool,
-    pub is_small: bool,
-    pub mode: Mode,
-    pub user_dirs: Vec<UserItem>,
-    pub current_dir: PathBuf,
-    pub current_entries: Vec<Entry>,
-    pub current_metadata: Option<Vec<SerializeMetadata>>,
-    index: IndexController,
-    pub index_list: IndexList,
-    watcher: RecommendedWatcher,
-    clipboard: Clipboard,
-    pub pending_open: Option<PathBuf>,
-    pub pending_open_editor: Option<PathBuf>,
-    pub input: Vec<char>,
-    pub input_index: usize,
-    pub create_error: bool,
+impl CreateState {
+    /// Cambia el estado a `Error`
+    fn fail(&mut self, err: Error) {
+        *self = CreateState::Error(err);
+    }
+    /// Abre el popup en modo edición.
+    fn open(&mut self) {
+        *self = CreateState::Editing;
+    }
+    /// Cierra el popup.
+    fn close(&mut self) {
+        *self = CreateState::Closed;
+    }
 }
 
-impl<'a> App<'a> {
-    pub fn new(mut watcher: RecommendedWatcher) -> Self {
+impl Default for CreateState {
+    fn default() -> Self {
+        CreateState::Closed
+    }
+}
+
+/// Acciones que deben ejecutarse "afuera" del loop principal (abrir una app
+/// externa o un editor). Se guardan acá y el loop principal las consume y
+/// las limpia después de consumirlas.
+pub struct PendingExternalActions {
+    /// Archivo listo para abrirse con la app externa por defecto.
+    pub open_with_app: Option<PathBuf>,
+    /// Archivo listo para abrirse en el editor externo configurado.
+    pub open_with_editor: Option<PathBuf>,
+}
+
+impl Default for PendingExternalActions {
+    fn default() -> Self {
+        Self {
+            open_with_app: None,
+            open_with_editor: None,
+        }
+    }
+}
+
+/// Estado del explorador: directorio actual, entradas del directorio,
+/// bookmarks y la metadata del elemento seleccionado.
+pub struct ExplorerState {
+    /// Directorio de trabajo actual que se está explorando.
+    pub pwd: PathBuf,
+    /// Bookmarks del sidebar
+    pub bookmarks: Vec<(String, Option<PathBuf>)>,
+    // pinned: HashMap<String, Option<PathBuf>>,
+    /// Entidades (archivos/directorios) del directorio actual.
+    pub entries: Vec<Entry>,
+    /// Metadata serializada del elemento seleccionado, lista para mostrar.
+    pub metadata: Option<Vec<(String, String)>>,
+}
+
+impl ExplorerState {
+    /// Devuelve el directorio actual.
+    fn get_pwd(&self) -> PathBuf {
+        self.pwd.clone()
+    }
+
+    /// Cambia el directorio actual.
+    fn set_pwd(&mut self, path: PathBuf) {
+        self.pwd = path
+    }
+
+    /// Reemplaza la lista de entidades del directorio actual.
+    fn set_entries(&mut self, entries: Vec<Entry>) {
+        self.entries = entries
+    }
+}
+
+impl Default for ExplorerState {
+    /// Inicializa el explorador leyendo el pwd actual, listando sus
+    /// entradas según la config (orden, orden invertido, ocultos) y
+    /// calculando la metadata de la primera entrada si existe alguna.
+    fn default() -> Self {
         let config = get_config().lock().unwrap();
-        let current_dir = get_user_home_dir();
-        let user_dirs = get_user_dirs();
-        let user_dirs_len = user_dirs.len();
+        let pwd: PathBuf = get_pwd();
 
         let dir_entries_options = EntriesOptions {
-            path: current_dir.clone(),
+            path: pwd.clone(),
             sort: config.sort.clone(),
             invert: config.invert_sort.clone(),
             show_hidden: config.show_hidden_files.clone(),
             filter: None,
         };
 
-        let current_entries =
-            get_dir_entries(dir_entries_options).expect("Cannot get contents of HOME directory");
+        let entries: Vec<Entry> = get_dir_entries(dir_entries_options)
+            .expect(format!("Cannot get contents of {:?} directory", pwd.clone()).as_str());
 
-        let file_panel_index: Option<usize> = if !current_entries.is_empty() {
-            Some(0)
+        let file_panel_index: Option<usize> = if !entries.is_empty() { Some(0) } else { None };
+
+        let metadata = if let Some(index) = file_panel_index {
+            if entries.is_empty() {
+                None
+            } else {
+                Some(get_serialize_metadata(&entries.get(index).unwrap()))
+            }
         } else {
             None
         };
 
-        let current_metadata = get_metadata_current(&current_entries, file_panel_index);
+        Self {
+            pwd,
+            bookmarks: get_bookmarks(),
+            entries,
+            metadata,
+        }
+    }
+}
 
-        let _ = watcher.watch(&current_dir, notify::RecursiveMode::NonRecursive);
+// ─── ★ Estado principal de la app ──────────────────────────────────────────
 
-        return App {
+pub struct App {
+    pub title: &'static str,
+    pub exit: bool,
+    /// `true` cuando la terminal es más chica que `MIN_WIDTH_APP`/`MIN_HEIGHT_APP`.
+    /// Mientras sea `true`, `execute_action` ignora todas las acciones salvo salir.
+    pub is_small: bool,
+    pub active_panel: Panel,
+    /// Índice de selección de cada panel, independiente entre sí.
+    pub panels: EnumMap<Panel, SelectionIndex>,
+    pub explorer: ExplorerState,
+    /// Watcher del filesystem: vigila el directorio actual para detectar cambios.
+    watcher: RecommendedWatcher,
+    /// Portapapeles del sistema (si hay uno disponible).
+    clipboard: Option<Clipboard>,
+    pub input: Input,
+    pub pending_external_actions: PendingExternalActions,
+    pub create_state: CreateState,
+}
+
+impl App {
+    // ── Inicialización  ─────────────────────────────────────────────────
+
+    /// Crea la App con su estado inicial y empieza a vigilar el explorer.pwd con el watcher.
+    pub fn new(mut watcher: RecommendedWatcher) -> Self {
+        let state = ExplorerState::default();
+        let _ = watcher.watch(&state.pwd, notify::RecursiveMode::NonRecursive);
+
+        let mut panels: EnumMap<Panel, SelectionIndex> = EnumMap::default();
+
+        panels[Panel::SideBar].setup(state.bookmarks.len(), Some(0), None);
+        App {
             title: &global::TITLE,
             exit: false,
             is_small: false,
-            mode: Mode::SideBar,
-            user_dirs,
-            current_dir,
-            current_entries,
-            current_metadata,
-            index: IndexController {
-                current: 0,
-                len: user_dirs_len,
-                ignore: vec![],
-            },
-
-            index_list: IndexList {
-                sidebar: Some(0),
-                file_panel: file_panel_index,
-                metadata: None,
-            },
+            active_panel: Panel::SideBar,
+            panels,
+            explorer: state,
+            input: Input::default(),
             watcher,
-            clipboard: Clipboard::new().unwrap(),
-            pending_open: None,
-            pending_open_editor: None,
-            input: vec![],
-            input_index: 0,
-            create_error: false,
-        };
+            clipboard: Clipboard::new().ok(),
+            pending_external_actions: PendingExternalActions::default(),
+            create_state: CreateState::default(),
+        }
     }
 
+    // ── Ciclo (render / update) ──────────────────────────────
+
+    /// Se llama en cada frame del loop principal.
+    /// Y inicializa el renderizado del tui.
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
         let term_area = frame.area();
 
@@ -117,34 +215,169 @@ impl<'a> App<'a> {
             self.is_small = false
         }
 
-        tui::draw(frame, self);
+        tui::render(frame, self);
     }
 
+    ///  Se activa al haber un cambio en el directorio (disparado por el watcher).
+    /// Revalida el pwd (por si fue borrado/movido), recarga las entradas,
+    /// ajusta el índice seleccionado y recalcula la metadata mostrada.
     pub fn update(&mut self) {
-        self.current_dir = nearest_existing_dir(self.current_dir.clone());
+        // Resuelve la ruta actual y si no existe retrocede hasta encontrar una válida
+        let pwd = self.explorer.get_pwd();
+        self.explorer.set_pwd(resolve_existing_dir(pwd));
+
+        // Actualiza la ruta del proceso de trabajo actual de la app
+        let _ = std::env::set_current_dir(self.explorer.get_pwd());
+
+        // Obtiene las opciones para leer las entries del directorio
+        let options = self.get_entries_option();
+
+        // Mensaje de error temporal si no se puede obtener el contenido del directorio
+        let expect_msg = format!(
+            "Cannot get contents of {} directory",
+            self.explorer.get_pwd().to_str().unwrap()
+        );
+
+        // Actualiza la lista de entries
+        self.explorer
+            .set_entries(get_dir_entries(options).expect(&expect_msg));
+
+        if !self.explorer.entries.is_empty() {
+            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), None, None);
+        }
+
+        // Selecciona el último elemento si el índice anterior es mayor a la
+        // cantidad de entries actuales (evita quedar apuntando "afuera" de la lista)
+        self.panels[Panel::FilePanel].clamp_seleted(self.explorer.entries.len());
+
+        self.update_metadata_current();
+    }
+
+    // ── 🛠 Funciones de control internas ─────────────────────────────────
+
+    /// ▸ Cambia el pwd a `path`: reubica el watcher, recarga entries y metadata.
+    /// Usada por navegación (abrir carpeta, ir al padre, abrir bookmark).
+    fn open_directory(&mut self, path: PathBuf) {
+        let valid_dir = resolve_existing_dir(path);
+
+        let _ = self.watcher.unwatch(&self.explorer.pwd);
+        let _ = self
+            .watcher
+            .watch(&valid_dir, notify::RecursiveMode::NonRecursive);
+
+        self.explorer.pwd = valid_dir;
+
+        // Actualiza la ruta del proceso de trabajo actual de la app
+        let _ = std::env::set_current_dir(self.explorer.get_pwd());
 
         let options = self.get_entries_option();
 
         let expect_msg = format!(
             "Cannot get contents of {} directory",
-            self.current_dir.to_str().unwrap()
+            self.explorer.pwd.to_str().unwrap()
         );
 
-        self.current_entries = get_dir_entries(options).expect(&expect_msg);
+        self.explorer.entries = get_dir_entries(options).expect(&expect_msg);
 
-        if self.current_entries.is_empty() {
-            self.index_list.file_panel = None;
-        } else if let Some(index) = self.index_list.file_panel {
-            // Selecciona el ultimo elemento si el index es mayor a al cantidad de elementos
-            if index > self.current_entries.len() - 1 {
-                self.index_list.file_panel = Some(self.current_entries.len() - 1);
-            }
+        if !self.explorer.entries.is_empty() {
+            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), Some(0), None);
         }
-
-        self.fix_open_mode_file_panel();
         self.update_metadata_current();
     }
 
+    /// ▸ Recalcula `explorer.metadata` en base a la entry actualmente seleccionada.
+    fn update_metadata_current(&mut self) {
+        self.explorer.metadata = self.get_current_metadata()
+    }
+
+    /// ▸ Copia `value` al portapapeles del sistema, si hay uno disponible.
+    fn copy_clipboard(&mut self, value: String) {
+        if let Some(clipboard) = self.clipboard.as_mut() {
+            let _ = clipboard.set_text(value);
+        }
+    }
+
+    // ──  Getters de datos derivados del estado ─────────────────────────
+
+    // Entries (FilePanel)
+
+    /// Retorna el Entry actualmente seleccionado en el FilePanel, si existe.
+    fn get_current_entry(&self) -> Option<&Entry> {
+        self.explorer
+            .entries
+            .get(self.panels[Panel::FilePanel].selected)
+    }
+
+    /// Retorna las opciones de lectura de directorio (orden, ocultos, etc.) a
+    /// partir de la config global y el pwd actual.
+    fn get_entries_option(&self) -> EntriesOptions {
+        let config = get_config().lock().unwrap();
+        EntriesOptions {
+            path: self.explorer.pwd.clone(),
+            sort: config.sort.clone(),
+            invert: config.invert_sort.clone(),
+            show_hidden: config.show_hidden_files,
+            filter: None,
+        }
+    }
+
+    // Metadata
+
+    /// Retorna la Metadata serializada del entry actual seleccionado en el FilePanel.
+    fn get_current_metadata(&self) -> Option<Vec<(String, String)>> {
+        self.get_current_entry().map(get_serialize_metadata)
+    }
+
+    /// Retorna (clave, valor) de metadata actualseleccionada dentro del
+    /// panel Metadata. Devuelve `None` si el panel no está activo o es invalido.
+    fn get_current_metadata_selected(&self) -> Option<(String, String)> {
+        if !self.panels[Panel::Metadata].valid {
+            return None;
+        }
+        self.explorer
+            .metadata
+            .as_ref()?
+            .get(self.panels[Panel::Metadata].selected)
+            .cloned()
+    }
+
+    // Sidebar
+
+    /// Obtiene Bookmark actualmente seleccionado en el Sidebar, si el panel es válido.
+    fn get_current_bookmarks(&self) -> Option<(String, Option<PathBuf>)> {
+        if !self.panels[Panel::SideBar].valid {
+            return None;
+        }
+        self.explorer
+            .bookmarks
+            .get(self.panels[Panel::SideBar].selected)
+            .cloned()
+    }
+
+    // ── Sistema de archivos ────────────────────────────────────────────
+
+    /// Crea un archivo o directorio basado en `full_path`. Si `input_value` termina
+    /// en "/", se interpreta como directorio (crea toda la ruta con
+    /// `create_dir_all`); en caso contrario crea un archivo, asegurando antes
+    /// que exista el directorio padre.
+    fn create_entry(&self, full_path: PathBuf, input_value: &String) -> Result<(), Error> {
+        if input_value.ends_with("/") {
+            create_dir_all(full_path)?;
+            return Ok(());
+        }
+
+        let parent = get_parent_dir(full_path.clone());
+        create_dir_all(parent)?;
+        File::create(full_path)?;
+
+        Ok(())
+    }
+
+    // ── Entrada de acciones (keymap -> Action) ─────────────────────────
+
+    /// Punto de entrada único para procesar una `Action` que se dispara por un
+    /// atajo de teclado. Si la terminal está muy chica (`is_small`), solo se
+    /// permite salir; el resto de las acciones se ignoran.
     pub fn execute_action(&mut self, action: Action) {
         if action == Action::Exit {
             self.exit = true
@@ -155,350 +388,216 @@ impl<'a> App<'a> {
         }
 
         match action {
-            Action::MoveUp => {
-                self.action_move_up();
-            }
-            Action::MoveDown => {
-                self.action_move_down();
-            }
-            Action::OpenFromSideBar => {
-                self.action_open_from_sidebar();
-            }
-            Action::OpenFromFilePanel => {
-                self.action_open_from_file_panel();
-            }
-            Action::OpenEditor => {
-                self.action_open_editor();
-            }
-            Action::ToParentDirectory => {
-                self.action_to_parent_directory();
-            }
-            Action::ChangeModeFromSideBar => self.mode = Mode::FilePanel,
-            Action::ChangeModeFromFilePanel => self.mode = Mode::SideBar,
-            Action::ChangeModeFromMetadata => {
-                self.mode = Mode::FilePanel;
-                self.index_list.metadata = None
-            }
-            Action::ChangeModeMetadata => {
-                self.action_change_mode_metadata();
-            }
-            Action::CopyMetadata => {
-                self.action_copy_metadata_selected();
-            }
-            Action::OpenCreate => {
-                self.mode = Mode::Create;
-                self.input_index = 0;
-                self.clear_input();
-            }
-            Action::AcceptCreate => {
-                self.action_create_accept();
-            }
-            Action::CancelCreate => {
-                if self.create_error {
-                    self.create_error = false
-                }
+            // Movimiento Arriba y Abajo
+            Action::MoveUp => self.action_move_up(),
+            Action::MoveDown => self.action_move_down(),
 
-                self.mode = Mode::FilePanel;
-                self.input_index = 0;
-                self.clear_input();
-            }
-            Action::MoveInputCursorLeft => {
-                self.action_move_input_cursor_left();
-            }
-            Action::MoveInputCursorRight => {
-                self.action_move_input_cursor_right();
-            }
-            Action::RemoveInputChar => {
-                self.action_remove_input_char();
-            }
+            // Abrir directorios y elementos
+            Action::OpenBookmark => self.action_open_selected_bookmark(),
+            Action::OpenEntry => self.action_open_selected_entry(),
+            Action::OpenEditor => self.action_open_selected_in_editor(),
+            Action::GoToParentDir => self.action_go_to_parent_dir(),
+
+            // Cambio entre el panel del Sidebar y FilePanel
+            Action::FocusFilePanel => self.action_focus_file_panel(),
+            Action::FocusSideBar => self.action_focus_sidebar_panel(),
+
+            // Panel Metadata
+            Action::FocusMetadata => self.action_focus_metadata_panel(),
+            Action::CopyMetadata => self.action_copy_selected_metadata(),
+            Action::ExitMetadata => self.action_exit_metadata(),
+            // Panel Create
+            Action::OpenCreatePanel => self.action_open_create_panel(),
+            Action::ConfirmCreate => self.action_confirm_create(),
+            Action::CancelCreate => self.action_cancel_create(),
+            // Movimiento del cursor del input
+            Action::MoveInputCursorLeft => self.input.move_cursor_left(),
+            Action::MoveInputCursorRight => self.input.move_cursor_right(),
+            Action::RemoveInputChar => self.input.remove_char(),
+
             _ => {}
         }
     }
 
-    // ------------------------------------
-    // ------------------------------------
-    // ---------- Input Functions ---------
-    // ------------------------------------
-    // ------------------------------------
-
+    /// Maneja teclas "de texto" cuando el panel
+    /// activo espera texto libre, como el panel `Create`.
     pub fn execute_input_key(&mut self, key: KeyCode) {
-        match self.mode {
-            Mode::Create => {
+        match self.active_panel {
+            Panel::Create => {
                 if let Some(ch) = key.as_char() {
-                    self.set_input_char(ch);
+                    self.input.set_char(ch);
                 }
             }
             _ => {}
         }
     }
 
-    pub fn execute_input_paste(&mut self, text: String) {
-        text.chars().for_each(|ch| self.set_input_char(ch));
-    }
+    // ── Acciones: movimiento ────────────────────────────────────────────
 
-    fn set_input_char(&mut self, ch: char) {
-        if ch != '\n' {
-            self.input.insert(self.input_index, ch);
-            self.input_index += 1
-        }
-    }
-
-    fn action_remove_input_char(&mut self) {
-        if self.input_index > 0 {
-            self.input.remove(self.input_index - 1);
-            self.input_index -= 1
-        }
-    }
-
-    fn action_move_input_cursor_left(&mut self) {
-        if self.input_index > 0 {
-            self.input_index -= 1
-        }
-    }
-
-    fn action_move_input_cursor_right(&mut self) {
-        if self.input_index < self.input.len() {
-            self.input_index += 1
-        }
-    }
-
-    pub fn get_input_to_string(&mut self) -> String {
-        self.input.iter().collect()
-    }
-    fn clear_input(&mut self) {
-        self.input.clear();
-    }
-
-    // ------------------------------------
-    // ------------------------------------
-    // ---------- Others functions --------
-    // ------------------------------------
-    // ------------------------------------
-
-    fn get_entries_option(&self) -> EntriesOptions {
-        let config = get_config().lock().unwrap();
-        return EntriesOptions {
-            path: self.current_dir.clone(),
-            sort: config.sort.clone(),
-            invert: config.invert_sort.clone(),
-            show_hidden: config.show_hidden_files,
-            filter: None,
-        };
-    }
-
-    fn update_metadata_current(&mut self) {
-        // Actualiza la lista de metadata actual
-        self.current_metadata =
-            get_metadata_current(&self.current_entries, self.index_list.file_panel)
-    }
-
-    fn fix_open_mode_file_panel(&mut self) {
-        // Si hay entries y el index_list no selecciono ninguno entry, va seleccionar el primer elemento
-        if !(self.current_entries.is_empty()) && (self.index_list.file_panel == None) {
-            self.index_list.file_panel = Some(0)
-        }
-    }
-
-    // ------------------------------------
-    // ------------------------------------
-    // ------- Auxiliary functions --------
-    // ------------------------------------
-    // ------------------------------------
-
-    fn change_index(&mut self, index_action: IndexAction) {
-        match self.mode {
-            Mode::SideBar => {
-                self.index.set_len(self.user_dirs.len());
-                self.index.set_current(self.index_list.sidebar);
-                self.index.apply_action(index_action);
-                self.index_list.sidebar = Some(self.index.current)
-            }
-            Mode::FilePanel => {
-                if self.current_entries.is_empty() {
-                    return;
-                }
-                self.index.set_len(self.current_entries.len());
-                self.index.set_current(self.index_list.file_panel);
-                self.index.apply_action(index_action);
-                self.index_list.file_panel = Some(self.index.current);
-
-                self.update_metadata_current();
-            }
-            Mode::Metadata => {
-                if self.current_metadata == None {
-                    return;
-                }
-
-                self.index.set_len(
-                    self.current_metadata
-                        .clone()
-                        .expect("Can't get list len from metadata")
-                        .len(),
-                );
-                self.index.set_current(self.index_list.metadata);
-                self.index.apply_action(index_action);
-                self.index_list.metadata = Some(self.index.current);
-            }
-            _ => {}
-        }
-    }
-
-    fn open_directory(&mut self, path: PathBuf) {
-        let valid_dir = nearest_existing_dir(path);
-
-        let _ = self.watcher.unwatch(&self.current_dir);
-        let _ = self
-            .watcher
-            .watch(&valid_dir, notify::RecursiveMode::NonRecursive);
-
-        self.current_dir = valid_dir;
-
-        let options = self.get_entries_option();
-
-        let expect_msg = format!(
-            "Cannot get contents of {} directory",
-            self.current_dir.to_str().unwrap()
-        );
-
-        self.current_entries = get_dir_entries(options).expect(&expect_msg);
-        self.index_list.file_panel = None;
-        self.fix_open_mode_file_panel();
-        self.update_metadata_current();
-    }
-
-    // ------------------------------------
-    // ------------------------------------
-    // ------------- Actions --------------
-    // ------------------------------------
-    // ------------------------------------
-
+    /// Mueve la selección hacia arriba dentro del panel activo.
+    /// Si el panel activo es el FilePanel actualiza la metadata selecionada.
     fn action_move_up(&mut self) {
-        self.change_index(IndexAction::Decrease);
+        self.panels[self.active_panel].prev();
+        if self.active_panel == Panel::FilePanel {
+            self.update_metadata_current();
+        }
     }
 
+    /// Mueve la selección hacia abajo dentro del panel activo.
+    /// Si el panel activo es el FilePanel actualiza la metadata selecionada.
     fn action_move_down(&mut self) {
-        self.change_index(IndexAction::Increase);
+        self.panels[self.active_panel].next();
+        if self.active_panel == Panel::FilePanel {
+            self.update_metadata_current();
+        }
     }
 
-    fn action_to_parent_directory(&mut self) {
-        if Mode::FilePanel == self.mode {
-            let path = get_parent_dir(self.current_dir.clone());
+    // ── Acciones: navegación y apertura de directorios/archivos ───────
+
+    /// Hace focus al `file_panel`
+
+    fn action_focus_file_panel(&mut self) {
+        self.active_panel = Panel::FilePanel;
+
+        if self.explorer.entries.is_empty() {
+            self.panels[Panel::FilePanel].reset();
+        } else {
+            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), None, None);
+        }
+    }
+
+    /// Hace focus al `sidebar`
+    fn action_focus_sidebar_panel(&mut self) {
+        self.active_panel = Panel::SideBar
+    }
+
+    /// Va al directorio padre del pwd actual (solo si el FilePanel está activo).
+    fn action_go_to_parent_dir(&mut self) {
+        if Panel::FilePanel == self.active_panel {
+            let path = get_parent_dir(self.explorer.pwd.clone());
             self.open_directory(path);
         }
     }
 
-    pub fn action_open_from_sidebar(&mut self) {
-        if let Some(index) = self.index_list.sidebar {
-            let item = self.user_dirs.get(index).unwrap();
-            if let Some(path) = item.path.clone() {
-                self.open_directory(path);
-                self.mode = Mode::FilePanel;
+    /// Navega al path del bookmark seleccionado en el Sidebar y le pasa el
+    /// focus al FilePanel.
+    pub fn action_open_selected_bookmark(&mut self) {
+        if let Some((_, path)) = self.get_current_bookmarks() {
+            if let Some(p) = path {
+                self.open_directory(p.clone());
+                self.active_panel = Panel::FilePanel;
             }
         }
     }
 
-    fn action_open_from_file_panel(&mut self) {
-        if let Some(index) = self.index_list.file_panel {
-            let entry = self.current_entries.get(index).unwrap();
+    /// Si el entry seleccionado es un archivo, lo marca para abrirse con
+    /// una app externa (`pending_external_actions`). Si es un directorio,
+    /// navega dentro de él.
+    fn action_open_selected_entry(&mut self) {
+        let Some(entry) = self.get_current_entry() else {
+            return;
+        };
 
-            if entry.is_file {
-                let path = entry.path.clone();
-                self.pending_open = Some(path);
-                return;
-            }
+        let path = entry.path.clone();
 
-            self.open_directory(entry.path.clone());
-        }
-    }
-
-    fn action_open_editor(&mut self) {
-        if let Some(index) = self.index_list.file_panel {
-            let entry = self.current_entries.get(index).unwrap();
-            if entry.is_file {
-                let path = entry.path.clone();
-                self.pending_open_editor = Some(path);
-                return;
-            }
-        }
-    }
-
-    fn action_change_mode_metadata(&mut self) {
-        if self.mode == Mode::Metadata {
+        if entry.is_file {
+            self.pending_external_actions.open_with_app = Some(path);
             return;
         }
 
-        self.mode = Mode::Metadata;
-        self.index_list.metadata = Some(0)
+        self.open_directory(path);
     }
 
-    fn action_copy_metadata_selected(&mut self) {
-        if self.mode != Mode::Metadata {
+    /// Si el entry seleccionado es un archivo, lo marca para abrirse en el
+    /// editor externo configurado.
+    fn action_open_selected_in_editor(&mut self) {
+        let Some(entry) = self.get_current_entry() else {
+            return;
+        };
+
+        if entry.is_file {
+            let path = entry.path.clone();
+            self.pending_external_actions.open_with_editor = Some(path);
+        }
+    }
+
+    // ── Acciones: panel Metadata ────────────────────────────────────────
+
+    /// Le da el focus al panel Metadata y selecciona el primer ítem.
+    fn action_focus_metadata_panel(&mut self) {
+        if self.active_panel == Panel::Metadata {
             return;
         }
 
-        if let Some(metadata) = &self.current_metadata {
-            if let Some(index) = self.index_list.metadata {
-                let value = metadata.get(index).unwrap().value.as_str();
-                self.clipboard.set_text(value).unwrap();
-            }
+        self.active_panel = Panel::Metadata;
+        if let Some(metadata) = self.explorer.metadata.as_ref() {
+            self.panels[Panel::Metadata].setup(metadata.len(), None, None);
+        } else {
+            self.panels[Panel::Metadata].reset();
         }
     }
-    fn action_create_accept(&mut self) {
-        if self.create_error {
+
+    /// Copia al portapapeles el valor de la metadata actual seleccionada.
+    fn action_copy_selected_metadata(&mut self) {
+        if self.active_panel != Panel::Metadata {
             return;
         }
 
-        let input_content = self.get_input_to_string();
+        if let Some((_, value)) = self.get_current_metadata_selected() {
+            self.copy_clipboard(value);
+        }
+    }
 
-        if input_content.trim().is_empty() {
-            self.mode = Mode::FilePanel;
-            self.clear_input();
-            self.input_index = 0;
+    /// Desactiva el panel de metadata y activa el File Panel
+    fn action_exit_metadata(&mut self) {
+        self.active_panel = Panel::FilePanel;
+        self.panels[Panel::Metadata].reset();
+    }
+
+    // ── Acciones: panel Create ──────────────────────────────────────────
+
+    /// Abre el panel de creación de archivo/directorio, limpiando el input
+    /// y mostrando el mensaje inicial del popup.
+    fn action_open_create_panel(&mut self) {
+        self.active_panel = Panel::Create;
+        self.input.clear();
+        self.create_state.open();
+    }
+
+    /// Confirma la creación del archivo/directorio ingresado en el input.
+    /// Si el input está vacío, simplemente cierra el panel. Si hay un error
+    /// al crear, lo muestra en el popup y mantiene el panel abierto.
+    fn action_confirm_create(&mut self) {
+        if let CreateState::Error(_) = self.create_state {
             return;
         }
 
-        let join_dir = self.current_dir.join(input_content.clone());
+        let input_value = self.input.to_string();
 
-        // Create dir
-        if input_content.ends_with("/") {
-            match create_dir_all(join_dir) {
-                Err(_) => self.create_error = true,
-                Ok(_) => self.create_error = false,
-            }
-
+        if input_value.trim().is_empty() {
+            self.active_panel = Panel::FilePanel;
+            self.input.clear();
             return;
         }
 
-        // Create file
-        let parent = get_parent_dir(join_dir.clone());
+        let full_path = self.explorer.pwd.join(input_value.clone());
 
-        match create_dir_all(parent) {
-            Err(_) => self.create_error = true,
-            Ok(_) => self.create_error = false,
+        if let Err(err) = self.create_entry(full_path, &input_value) {
+            self.create_state.fail(err);
+        } else {
+            // Si no hubo error, el panel create se cierra
+            self.active_panel = Panel::FilePanel;
+            self.create_state.close();
         }
 
-        match File::create(join_dir) {
-            Err(_) => self.create_error = true,
-            Ok(_) => self.create_error = false,
-        }
-
-        if !self.create_error {
-            self.mode = Mode::FilePanel;
-            self.clear_input();
-            self.input_index = 0
-        }
+        self.input.clear();
     }
-}
 
-fn get_metadata_current(
-    current_entries: &Vec<Entry>,
-    index: Option<usize>,
-) -> Option<Vec<SerializeMetadata>> {
-    if let Some(index) = index {
-        if current_entries.is_empty() {
-            return None;
-        }
-        return Some(serialize_metadata(&current_entries.get(index).unwrap()));
+    /// Cancela la creación: cierra el popup, vuelve al FilePanel y
+    /// descarta el texto ingresado en el input.
+    fn action_cancel_create(&mut self) {
+        self.create_state.close();
+        self.active_panel = Panel::FilePanel;
+        self.input.clear();
     }
-    None
 }

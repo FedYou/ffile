@@ -5,40 +5,40 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, Mode},
-    tui::utils::string_to_elipse,
+    app::{App, Panel},
+    tui::utils::truncate_with_ellipsis,
 };
 
-pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
+pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
     // Areas ---------
-    let mut metadata_area = metadata_area;
+    let mut panel_area = metadata_area;
 
-    metadata_area.width = metadata_area.width - 1;
-    metadata_area.x = metadata_area.x + 1;
+    panel_area.width = panel_area.width - 1;
+    panel_area.x = panel_area.x + 1;
 
-    let mut metadata_content_area = metadata_area.inner(Margin {
+    let mut metadata_list_area = panel_area.inner(Margin {
         horizontal: 2,
         vertical: 0,
     });
 
-    metadata_content_area.height = metadata_content_area.height - 1;
+    metadata_list_area.height = metadata_list_area.height - 1;
 
-    let mut index_position_area = metadata_area.inner(Margin {
+    let mut selection_indicator_area = panel_area.inner(Margin {
         horizontal: 2,
         vertical: 0,
     });
 
-    index_position_area.width = 9;
-    index_position_area.y = index_position_area.y + 4;
-    index_position_area.height = 1;
-    index_position_area.x =
-        index_position_area.x + metadata_content_area.width - index_position_area.width;
+    selection_indicator_area.width = 9;
+    selection_indicator_area.y = selection_indicator_area.y + 4;
+    selection_indicator_area.height = 1;
+    selection_indicator_area.x =
+        selection_indicator_area.x + metadata_list_area.width - selection_indicator_area.width;
 
     // ----------
 
-    let mut index_position: String = "".to_string();
+    let mut selection_indicator: String = "".to_string();
 
-    let modifier: Modifier = if app.mode == Mode::Metadata {
+    let focus_modifier: Modifier = if app.active_panel == Panel::Metadata {
         Modifier::BOLD
     } else {
         Modifier::DIM
@@ -46,53 +46,64 @@ pub fn draw(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
 
     // ---------
 
-    let metadata_widget = Block::new()
+    let metadata_block = Block::new()
         .borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Cyan).add_modifier(modifier))
+        .border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(focus_modifier),
+        )
         .title("Metadata")
         .title_position(TitlePosition::Bottom)
         .title_alignment(HorizontalAlignment::Center);
 
-    frame.render_widget(metadata_widget, metadata_area);
+    // Renderizado
+    frame.render_widget(metadata_block, panel_area);
 
-    if let Some(metadata) = &app.current_metadata {
-        let metadata_list: Vec<ListItem> = metadata
+    if let Some(metadata_entries) = &app.explorer.metadata {
+        let metadata_items: Vec<ListItem> = metadata_entries
             .into_iter()
-            .map(|m| {
-                ListItem::new(string_to_elipse(
-                    metadata_content_area.width as usize,
-                    format!("{}: {}", m.name, m.value),
+            .map(|(name, value)| {
+                ListItem::new(truncate_with_ellipsis(
+                    metadata_list_area.width as usize,
+                    format!("{}: {}", name, value),
                 ))
             })
             .collect();
 
-        let mut metadata_list_state = ListState::default();
-        metadata_list_state.select(app.index_list.metadata);
-
-        if let Some(index) = app.index_list.metadata {
-            index_position = format!("═╣ {}/{} ╠═", index + 1, metadata.len());
+        let mut list_state = ListState::default();
+        if app.panels[Panel::Metadata].valid {
+            list_state.select(Some(app.panels[Panel::Metadata].selected));
         } else {
-            index_position = format!("═╣ 1/{} ╠═", metadata.len());
+            list_state.select(None);
         }
 
-        let metadata_list_widget = List::new(metadata_list)
+        if app.panels[Panel::Metadata].valid {
+            let selected_index = app.panels[Panel::Metadata].selected;
+
+            selection_indicator =
+                format!("═╣ {}/{} ╠═", selected_index + 1, metadata_entries.len());
+        } else {
+            selection_indicator = format!("═╣ 1/{} ╠═", metadata_entries.len());
+        }
+
+        let metadata_list = List::new(metadata_items)
             .style(Style::default().add_modifier(Modifier::DIM).fg(Color::Cyan))
             .highlight_style(Style::default().bold().fg(Color::Cyan));
 
-        frame.render_stateful_widget(
-            metadata_list_widget,
-            metadata_content_area,
-            &mut metadata_list_state,
-        );
+        // Renderizado
+        frame.render_stateful_widget(metadata_list, metadata_list_area, &mut list_state);
     } else {
-        let text_widget = Paragraph::new("Without metadata")
+        let no_metadata_message = Paragraph::new("Without metadata")
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM));
 
-        frame.render_widget(text_widget, metadata_content_area);
+        // Renderizado
+        frame.render_widget(no_metadata_message, metadata_list_area);
     }
 
-    let index_position_widget = Paragraph::new(index_position);
+    let selection_indicator_paragraph = Paragraph::new(selection_indicator);
 
-    frame.render_widget(index_position_widget, index_position_area);
+    // Renderizado
+    frame.render_widget(selection_indicator_paragraph, selection_indicator_area);
 }

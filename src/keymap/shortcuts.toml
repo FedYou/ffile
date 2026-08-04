@@ -1,0 +1,38 @@
+[global]
+q = "exit"
+Up = "move_up"
+Down = "move_down"
+
+[file_panel]
+f = "focus_sidebar"
+Right = "open_entry"
+Enter = "open_entry"
+Left = "go_to_parent_dir"
+m = "focus_metadata"
+e = "open_editor"
+n = "open_create_panel"
+
+# -------------------------
+# ----- SideBar Mode
+# -------------------------
+[sidebar]
+f = "focus_file_panel"
+Right = "open_bookmark"
+Enter = "open_bookmark"
+
+# -------------------------
+# ----- Metadata Mode
+# -------------------------
+[metadata]
+f = "exit_metadata"
+Space = "copy_metadata"
+
+# -------------------------
+# ----- Create Mode
+# -------------------------
+[create]
+Esc = "cancel_create"
+Enter = "confirm_create"
+Left = "move_input_cursor_left"
+Right = "move_input_cursor_right"
+Backspace = "remove_input_char"

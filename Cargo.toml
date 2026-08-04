@@ -7,10 +7,12 @@ edition = "2024"
 arboard = "3.6.1"
 crossterm = "0.29.0"
 directories = "6.0.0"
+enum-map = "2.7.3"
 mime_guess = "2.0.5"
 notify = "8.2.0"
 open = "5.3.3"
 ratatui = "0.30.0"
+regex = "1.13.1"
 serde = {version = "1.0.228", features = ["derive"]}
 time = { version = "0.3.47", features = ["formatting"] }
 tokio = {version= "1.52.3", features = ["full"]}

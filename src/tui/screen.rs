@@ -10,30 +10,30 @@ use crate::{
     global::{MIN_HEIGHT_APP, MIN_WIDTH_APP},
 };
 
-fn draw_screen(frame: &mut ratatui::Frame, widget: Paragraph) {
-    let term_area = frame.area();
+fn render_centered_message(frame: &mut ratatui::Frame, message: Paragraph) {
+    let terminal_area = frame.area();
 
-    let rect = Rect {
+    let message_rect = Rect {
         x: 0,
-        y: term_area.height / 2 - 1,
-        width: term_area.width,
-        height: term_area.height,
+        y: terminal_area.height / 2 - 1,
+        width: terminal_area.width,
+        height: terminal_area.height,
     };
 
-    frame.render_widget(widget.centered(), rect);
+    frame.render_widget(message.centered(), message_rect);
 }
 
-pub fn draw_warning_small(frame: &mut ratatui::Frame) {
-    let term_area = frame.area();
+pub fn render_small_screen_warning(frame: &mut ratatui::Frame) {
+    let terminal_area = frame.area();
 
-    let mut current_width_color: Color = Color::Red;
-    let mut current_height_color: Color = Color::Red;
+    let mut width_status_color: Color = Color::Red;
+    let mut height_status_color: Color = Color::Red;
 
-    if MIN_WIDTH_APP <= term_area.width {
-        current_width_color = Color::Green
+    if MIN_WIDTH_APP <= terminal_area.width {
+        width_status_color = Color::Green
     }
-    if MIN_HEIGHT_APP <= term_area.height {
-        current_height_color = Color::Green
+    if MIN_HEIGHT_APP <= terminal_area.height {
+        height_status_color = Color::Green
     }
 
     let lines = vec![
@@ -56,28 +56,28 @@ pub fn draw_warning_small(frame: &mut ratatui::Frame) {
             Span::styled("Current Width", Style::default().fg(Color::Yellow)),
             Span::raw("="),
             Span::styled(
-                term_area.width.to_string(),
-                Style::default().fg(current_width_color),
+                terminal_area.width.to_string(),
+                Style::default().fg(width_status_color),
             ),
             Span::raw(" "),
             Span::styled("Current Height", Style::default().fg(Color::Yellow)),
             Span::raw("="),
             Span::styled(
-                term_area.height.to_string(),
-                Style::default().fg(current_height_color),
+                terminal_area.height.to_string(),
+                Style::default().fg(height_status_color),
             ),
         ]),
     ];
-    let widget = Paragraph::new(lines);
+    let message = Paragraph::new(lines);
 
-    draw_screen(frame, widget);
+    render_centered_message(frame, message);
 }
 
-pub fn draw_opening_editor(frame: &mut ratatui::Frame) {
+pub fn render_opening_editor(frame: &mut ratatui::Frame) {
     let config = get_config().lock().unwrap();
 
-    let widget = Paragraph::new(format!("Opening '{}' editor...", config.editor.clone()))
+    let message = Paragraph::new(format!("Opening '{}' editor...", config.editor.clone()))
         .style(Style::default().fg(Color::Green));
 
-    draw_screen(frame, widget);
+    render_centered_message(frame, message);
 }

@@ -6,20 +6,20 @@ struct Corner {
     y: u16,
 }
 
-pub fn draw(
+pub fn render_panel_corners(
     frame: &mut ratatui::Frame,
     sidebar_area: Rect,
     file_panel_area: Rect,
     metadata_area: Rect,
 ) {
-    let corners: Vec<Corner> = vec![
-        // Derecha arriba del file_panel para unirse con el sideabr
+    let panel_corners: Vec<Corner> = vec![
+        // Derecha arriba del file_panel para unirse con el sidebar
         Corner {
             symbol: '┤',
             x: sidebar_area.width,
             y: 1,
         },
-        // Derecha abajo del file_panel para unirse con el sideabr
+        // Derecha abajo del file_panel para unirse con el sidebar
         Corner {
             symbol: '┤',
             x: sidebar_area.width,
@@ -51,12 +51,12 @@ pub fn draw(
         },
     ];
 
-    for c in corners {
+    for corner in panel_corners {
         frame.render_widget(
-            c.symbol.to_text(),
+            corner.symbol.to_text(),
             Rect {
-                x: c.x,
-                y: c.y,
+                x: corner.x,
+                y: corner.y,
                 width: 1,
                 height: 1,
             },

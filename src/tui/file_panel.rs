@@ -6,17 +6,17 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, Mode},
-    tui::utils::{get_icon_file, get_icon_file_color, string_to_elipse_inverse},
+    app::{App, Panel},
+    tui::utils::{get_file_icon, get_file_icon_color, truncate_with_leading_ellipsis},
 };
 
-fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
+fn render_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modifier: Modifier) {
     let path_area = area.inner(Margin {
         horizontal: 1,
         vertical: 1,
     });
 
-    let path = app.current_dir.to_str().unwrap();
+    let path = app.explorer.pwd.to_str().unwrap();
 
     let file_header = Block::new()
         .title_alignment(HorizontalAlignment::Right)
@@ -26,7 +26,7 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modif
 
     let path_widget = Paragraph::new(format!(
         "   {}",
-        string_to_elipse_inverse((path_area.width - 5).into(), path.to_string())
+        truncate_with_leading_ellipsis((path_area.width - 5).into(), path.to_string())
     ))
     .fg(Color::Blue)
     .add_modifier(modifier);
@@ -35,100 +35,113 @@ fn draw_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, modif
     frame.render_widget(file_header, area);
 }
 
-pub fn draw(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
+pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
     // Areas ---------
-    let layout = Layout::default()
+    let panel_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
 
-    let file_panel_area = layout[1];
+    let panel_body_area = panel_layout[1];
 
-    let mut content_area = layout[1].inner(Margin {
+    let mut content_area = panel_layout[1].inner(Margin {
         horizontal: 1,
         vertical: 0,
     });
 
     content_area.height = content_area.height - 1;
 
-    let file_header_area = layout[0];
+    let file_header_area = panel_layout[0];
 
     // ---------
 
-    let content_len = app.current_entries.len();
+    let entry_count = app.explorer.entries.len();
     let mut list_state = ListState::default();
-    list_state.select(app.index_list.file_panel);
 
-    let mut index_position: String = "".to_string();
+    let has_valid_selection = app.panels[Panel::FilePanel].valid;
 
-    if let Some(index) = app.index_list.file_panel {
-        if content_len > 0 {
-            index_position = format!("═╣ {}/{} ╠═─", index + 1, content_len);
+    if has_valid_selection {
+        list_state.select(Some(app.panels[Panel::FilePanel].selected));
+    } else {
+        list_state.select(None);
+    }
+
+    let mut selection_indicator: String = "".to_string();
+
+    if has_valid_selection {
+        let selected_index = app.panels[Panel::FilePanel].selected;
+        if entry_count > 0 {
+            selection_indicator = format!("═╣ {}/{} ╠═─", selected_index + 1, entry_count);
         }
     }
 
-    let modifier: Modifier = if app.mode == Mode::FilePanel {
+    let focus_modifier: Modifier = if app.active_panel == Panel::FilePanel {
         Modifier::BOLD
     } else {
         Modifier::DIM
     };
 
-    let file_panel_widget = Block::new()
-        .title_bottom(index_position)
+    let file_panel_block = Block::new()
+        .title_bottom(selection_indicator)
         .title_alignment(HorizontalAlignment::Right)
         .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(Color::Green).add_modifier(modifier));
+        .border_style(
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(focus_modifier),
+        );
 
-    let list_items: Vec<ListItem> = app
-        .current_entries
+    let entry_items: Vec<ListItem> = app
+        .explorer
+        .entries
         .iter()
-        .map(|i| {
-            let icon = get_icon_file(
-                &i.metadata.name,
-                &i.metadata.ext.clone().unwrap_or("".to_string()),
-                &i.is_file,
+        .map(|entry| {
+            let entry_icon = get_file_icon(
+                &entry.metadata.name,
+                &entry.metadata.ext.clone().unwrap_or("".to_string()),
+                &entry.is_file,
             );
-            let color = get_icon_file_color(
-                &i.metadata.name,
-                &i.metadata.ext.clone().unwrap_or("".to_string()),
-                &i.is_file,
+            let icon_color = get_file_icon_color(
+                &entry.metadata.name,
+                &entry.metadata.ext.clone().unwrap_or("".to_string()),
+                &entry.is_file,
             );
 
-            let line = Line::from(vec![
+            let entry_line = Line::from(vec![
                 Span::styled(
-                    icon.to_string(),
-                    Style::default().fg(color).add_modifier(Modifier::DIM),
+                    entry_icon.to_string(),
+                    Style::default().fg(icon_color).add_modifier(Modifier::DIM),
                 ),
                 Span::raw(" "),
-                Span::raw(i.metadata.name.clone()),
+                Span::raw(entry.metadata.name.clone()),
             ]);
 
-            return ListItem::new(line);
+            return ListItem::new(entry_line);
         })
         .collect();
 
-    let list_widget = List::new(list_items)
+    let entry_list = List::new(entry_items)
         .style(
             Style::default()
                 .add_modifier(Modifier::DIM)
                 .fg(Color::Green),
         )
         .highlight_symbol(" ")
-        .highlight_style(Style::default().add_modifier(modifier))
+        .highlight_style(Style::default().add_modifier(focus_modifier))
         .highlight_spacing(HighlightSpacing::Always);
 
-    let forlder_empty_widget = Paragraph::new("Folder is empty")
+    let empty_folder_message = Paragraph::new("Folder is empty")
         .style(Style::new().fg(Color::Green).add_modifier(Modifier::DIM));
 
     // Renderizado
-    draw_file_header(frame, file_header_area, app, modifier);
+    render_file_header(frame, file_header_area, app, focus_modifier);
 
-    frame.render_widget(file_panel_widget, file_panel_area);
+    frame.render_widget(file_panel_block, panel_body_area);
 
-    if content_len > 0 {
-        frame.render_stateful_widget(list_widget, content_area, &mut list_state);
+    if entry_count > 0 {
+        frame.render_stateful_widget(entry_list, content_area, &mut list_state);
         return;
     }
-    frame.render_widget(forlder_empty_widget, content_area);
+    frame.render_widget(empty_folder_message, content_area);
 }
