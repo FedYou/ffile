@@ -1,5 +1,6 @@
 mod corners;
 mod create;
+mod file_clipboard;
 mod file_panel;
 mod input;
 mod metadata;
@@ -48,12 +49,15 @@ pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
     let sidebar_area = main_left_layout[1];
     let file_panel_area = content_layout[0];
     let metadata_area = footer_layout[0];
+    let clipboard_area = footer_layout[1];
 
     sidebar::render_sidebar(frame, sidebar_area, app);
 
     file_panel::render_file_panel(frame, file_panel_area, app);
 
     metadata::render_metadata(frame, metadata_area, app);
+
+    file_clipboard::render_file_clipboard(frame, clipboard_area, app);
 
     corners::render_panel_corners(frame, sidebar_area, file_panel_area, metadata_area);
 

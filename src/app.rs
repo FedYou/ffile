@@ -32,6 +32,8 @@ pub enum Panel {
     Metadata,
     /// Popup para crear archivos/directorios.
     Create,
+    // Clipboard de los archivos/directorios
+    FileClipboard,
 }
 
 /// Estado del panel para crear de archivos/directorios.
@@ -62,6 +64,61 @@ impl CreateState {
 impl Default for CreateState {
     fn default() -> Self {
         CreateState::Closed
+    }
+}
+
+pub struct FileClipboardItem {
+    pub path: PathBuf,
+    pub exist: bool,
+}
+
+pub struct FileClipboardState {
+    pub list: Vec<FileClipboardItem>,
+    pub in_progress: bool,
+}
+
+impl Default for FileClipboardState {
+    fn default() -> Self {
+        FileClipboardState {
+            list: vec![],
+            in_progress: false,
+        }
+    }
+}
+
+impl FileClipboardState {
+    pub fn add(&mut self, path: PathBuf) {
+        let exist = path.as_path().exists();
+
+        self.list.push(FileClipboardItem { path, exist });
+    }
+
+    // Actualiza el estado de si esa ruta de archivo/directorio existe
+    pub fn update_states(&mut self) {
+        self.list = self
+            .list
+            .iter()
+            .map(|i| FileClipboardItem {
+                path: i.path.clone(),
+                exist: i.path.as_path().exists(),
+            })
+            .collect()
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        self.list.remove(index);
+        self.update_states();
+    }
+
+    pub fn clear(&mut self) {
+        self.list.clear();
+    }
+
+    pub fn get(&self) -> Vec<PathBuf> {
+        self.list.iter().map(|i| i.path.clone()).collect()
+    }
+    pub fn len(&self) -> usize {
+        self.list.len()
     }
 }
 
@@ -171,6 +228,7 @@ pub struct App {
     watcher: RecommendedWatcher,
     /// Portapapeles del sistema (si hay uno disponible).
     clipboard: Option<Clipboard>,
+    pub file_clipboard: FileClipboardState,
     pub input: Input,
     pub pending_external_actions: PendingExternalActions,
     pub create_state: CreateState,
@@ -197,6 +255,7 @@ impl App {
             input: Input::default(),
             watcher,
             clipboard: Clipboard::new().ok(),
+            file_clipboard: FileClipboardState::default(),
             pending_external_actions: PendingExternalActions::default(),
             create_state: CreateState::default(),
         }
@@ -415,6 +474,12 @@ impl App {
             Action::MoveInputCursorRight => self.input.move_cursor_right(),
             Action::RemoveInputChar => self.input.remove_char(),
 
+            // FileClipboard
+            Action::AddEntryFileClipboard => self.action_add_entry_file_clipboard(),
+            Action::RemoveEntryFileClipboard => self.action_remove_entry_file_clipbaord(),
+            Action::ClearFileClipboard => self.action_clear_file_clipboard(),
+            Action::FocusFileClipboard => self.action_focus_file_clipbaord(),
+            Action::ExitFileClipboard => self.action_exit_file_clipboard(),
             _ => {}
         }
     }
@@ -599,5 +664,71 @@ impl App {
         self.create_state.close();
         self.active_panel = Panel::FilePanel;
         self.input.clear();
+    }
+
+    /// Añade el entry selecionado en el file_panel, si el archivo/directorio
+    /// existe lo añade a la lista de file_clipboard
+    fn action_add_entry_file_clipboard(&mut self) {
+        if let Some(entry) = self.get_current_entry() {
+            let entry_path = entry.path.clone();
+
+            if self
+                .file_clipboard
+                .list
+                .iter()
+                .find(|i| &i.path == &entry_path)
+                .is_some()
+            {
+                return;
+            };
+
+            self.file_clipboard.add(entry_path);
+            self.panels[Panel::FileClipboard].count = self.file_clipboard.len();
+            self.panels[Panel::FileClipboard]
+                .set_selected(self.file_clipboard.len().saturating_sub(1));
+        }
+    }
+
+    /// Elimina el entry entry selecionado de la lista del FileClipboard
+    fn action_remove_entry_file_clipbaord(&mut self) {
+        if self.active_panel != Panel::FileClipboard {
+            return;
+        }
+
+        self.file_clipboard
+            .remove(self.panels[Panel::FileClipboard].selected);
+
+        self.panels[Panel::FileClipboard].clamp_seleted(self.file_clipboard.len());
+
+        if self.file_clipboard.len() == 0 {
+            self.action_exit_file_clipboard();
+        }
+    }
+
+    /// Limpia toda la lista del FileClipboard
+    fn action_clear_file_clipboard(&mut self) {
+        if self.active_panel != Panel::FileClipboard {
+            return;
+        }
+
+        self.file_clipboard.clear();
+
+        self.panels[Panel::FileClipboard].clamp_seleted(self.file_clipboard.len());
+
+        self.action_exit_file_clipboard();
+    }
+
+    /// Le da focus al FileClipboard
+    fn action_focus_file_clipbaord(&mut self) {
+        if self.file_clipboard.len() > 0 {
+            self.active_panel = Panel::FileClipboard;
+            self.panels[Panel::FileClipboard].valid = true;
+        }
+    }
+
+    // Sale del FileClipboard y le da focus al FilePanel
+    fn action_exit_file_clipboard(&mut self) {
+        self.active_panel = Panel::FilePanel;
+        self.panels[Panel::FileClipboard].valid = false;
     }
 }

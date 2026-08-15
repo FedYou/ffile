@@ -11,6 +11,8 @@ Left = "go_to_parent_dir"
 m = "focus_metadata"
 e = "open_editor"
 n = "open_create_panel"
+Ctrl-c = "add_entry_clipboard"
+Ctrl-Alt-c = "focus_file_clipboard"
 
 # -------------------------
 # ----- SideBar Mode
@@ -36,3 +38,12 @@ Enter = "confirm_create"
 Left = "move_input_cursor_left"
 Right = "move_input_cursor_right"
 Backspace = "remove_input_char"
+
+# -------------------------
+# ----- File Clipboard Mode
+# -------------------------
+
+[file_clipboard]
+Esc = "exit_file_clipboard"
+d = "remove_entry_file_clipboard"
+a = "clear_file_clipboard"
