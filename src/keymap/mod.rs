@@ -183,11 +183,13 @@ fn parse_action_file_panel(s: &str) -> Action {
         "focus_sidebar" => Action::FocusSideBar,
         "open_entry" => Action::OpenEntry,
         "open_editor" => Action::OpenEditor,
-        "go_to_parent_dir" => Action::GoToParentDir,
+        "go_parent" => Action::GoToParentDir,
         "focus_metadata" => Action::FocusMetadata,
-        "open_create_panel" => Action::OpenCreatePanel,
-        "add_entry_clipboard" => Action::AddEntryFileClipboard,
-        "focus_file_clipboard" => Action::FocusFileClipboard,
+        "new_entry" => Action::OpenCreatePanel,
+        "copy_entry" => Action::AddEntryFileClipboard,
+        "focus_clipboard" => Action::FocusFileClipboard,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
         _ => Action::None,
     }
 }
@@ -195,8 +197,10 @@ fn parse_action_file_panel(s: &str) -> Action {
 /// Acciones válidas cuando el panel activo es `SideBar`.
 fn parse_action_sidebar(s: &str) -> Action {
     match s {
-        "focus_file_panel" => Action::FocusFilePanel,
+        "focus_files" => Action::FocusFilePanel,
         "open_bookmark" => Action::OpenBookmark,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
         _ => Action::None,
     }
 }
@@ -206,6 +210,8 @@ fn parse_action_metadata(s: &str) -> Action {
     match s {
         "exit_metadata" => Action::ExitMetadata,
         "copy_metadata" => Action::CopyMetadata,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
         _ => Action::None,
     }
 }
@@ -215,9 +221,9 @@ fn parse_action_create(s: &str) -> Action {
     match s {
         "cancel_create" => Action::CancelCreate,
         "confirm_create" => Action::ConfirmCreate,
-        "move_input_cursor_left" => Action::MoveInputCursorLeft,
-        "move_input_cursor_right" => Action::MoveInputCursorRight,
-        "remove_input_char" => Action::RemoveInputChar,
+        "move_cursor_left" => Action::MoveInputCursorLeft,
+        "move_cursor_right" => Action::MoveInputCursorRight,
+        "delete_char" => Action::RemoveInputChar,
         _ => Action::None,
     }
 }
@@ -225,9 +231,11 @@ fn parse_action_create(s: &str) -> Action {
 /// Acciones válidas cuando el panel activo es `FileClipboard`.
 fn parse_action_file_clipboard(s: &str) -> Action {
     match s {
-        "exit_file_clipboard" => Action::ExitFileClipboard,
-        "remove_entry_file_clipboard" => Action::RemoveEntryFileClipboard,
-        "clear_file_clipboard" => Action::ClearFileClipboard,
+        "exit_clipboard" => Action::ExitFileClipboard,
+        "remove_entry" => Action::RemoveEntryFileClipboard,
+        "clear_clipboard" => Action::ClearFileClipboard,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
         _ => Action::None,
     }
 }
