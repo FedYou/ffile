@@ -75,20 +75,16 @@ pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::E
     // → Al final, los directorios van siempre antes que los archivos.
     entries.sort_by_key(|e| {
         if e.is_file {
-            // → Archivo: va después de los directorios
             return 1;
         }
-        // → Directorio: va primero
         0
     });
 
     if !options.show_hidden {
-        // → Filtra los archivos ocultos (empiezan con ".").
         entries.retain(|e| !e.metadata.name.starts_with("."));
     }
 
     if let Some(filter_str) = &options.filter {
-        // → Filtra por nombre si se indicó un filtro de búsqueda.
         entries.retain(|e| e.metadata.name.contains(filter_str));
     }
 
@@ -159,18 +155,13 @@ pub fn get_config_dir() -> PathBuf {
 /// Devuelve el directorio padre de `path`. Si la ruta no tiene padre
 /// (ej. la raíz), devuelve la misma ruta.
 pub fn get_parent_dir(path: PathBuf) -> PathBuf {
-    path.parent()
-        // Si tiene directorio padre, lo retorna
-        .map(|p| p.to_path_buf())
-        // De lo contrario, devuelve la misma ruta ingresada
-        .unwrap_or(path)
+    path.parent().map(|p| p.to_path_buf()).unwrap_or(path)
 }
 
 /// Comprueba que `path` sea un directorio válido. Si no existe (o es un
 /// archivo), sube recursivamente hasta encontrar un directorio existente.
 /// Se usa para que la app nunca quede apuntando a una ruta inexistente.
 pub fn resolve_existing_dir(path: PathBuf) -> PathBuf {
-    // Valida si la ruta actual existe y es un directorio
     let mut is_invalid = false;
 
     match fs::metadata(&path) {
@@ -185,10 +176,9 @@ pub fn resolve_existing_dir(path: PathBuf) -> PathBuf {
     if is_invalid {
         return path
             .parent()
-            // → Sube un nivel y vuelve a intentar, hasta dar con una ruta válida
+            // Sube un nivel y vuelve a intentar, hasta dar con una ruta válida
             .map(|p| resolve_existing_dir(p.to_path_buf()))
             .unwrap_or(path);
     }
-
     path
 }

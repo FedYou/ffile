@@ -8,8 +8,18 @@ pub struct Input {
     pub content: Vec<char>,
 }
 
+impl Default for Input {
+    /// Input vacío, con el cursor en la posición 0.
+    fn default() -> Self {
+        Input {
+            position: 0,
+            content: Vec::new(),
+        }
+    }
+}
+
 impl Input {
-    // ── Edición de contenido ───────────────────────────────────────────
+    // Edición de contenido
 
     /// Vacía el input y vuelve el cursor al inicio.
     pub fn clear(&mut self) {
@@ -41,7 +51,7 @@ impl Input {
         }
     }
 
-    // ── Movimiento del cursor ──────────────────────────────────────────
+    // Movimiento del cursor
 
     /// Mueve el cursor una posición a la izquierda, sin pasar del inicio.
     pub fn move_cursor_left(&mut self) {
@@ -57,20 +67,10 @@ impl Input {
         }
     }
 
-    // ── Conversión ─────────────────────────────────────────────────────
+    // Conversión
 
     /// Junta el contenido (`Vec<char>`) en un `String`.
     pub fn to_string(&self) -> String {
         self.content.iter().collect()
-    }
-}
-
-impl Default for Input {
-    /// Input vacío, con el cursor en la posición 0.
-    fn default() -> Self {
-        return Input {
-            position: 0,
-            content: Vec::new(),
-        };
     }
 }

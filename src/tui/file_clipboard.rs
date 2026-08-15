@@ -34,8 +34,6 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
     selection_indicator_area.x =
         selection_indicator_area.x - selection_indicator_area.width / 2 + panel_area.width / 2;
 
-    // ----------
-
     let mut selection_indicator: String = "".to_string();
 
     let focus_modifier: Modifier = if app.active_panel == Panel::FileClipboard {
@@ -43,8 +41,6 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
     } else {
         Modifier::DIM
     };
-
-    // ---------
 
     let clipboard_block = Block::new()
         .borders(Borders::ALL)
@@ -58,7 +54,6 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
         .title_position(TitlePosition::Top)
         .title_alignment(HorizontalAlignment::Center);
 
-    // Renderizado
     frame.render_widget(clipboard_block, panel_area);
 
     if !app.file_clipboard.list.is_empty() {
@@ -110,7 +105,6 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
             )
             .highlight_spacing(HighlightSpacing::Always);
 
-        // Renderizado
         frame.render_stateful_widget(clipboard_list, clipboard_list_area, &mut list_state);
     } else {
         let void_clipboard_message = Paragraph::new("Void file clipboard").style(
@@ -119,12 +113,10 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
                 .add_modifier(Modifier::DIM),
         );
 
-        // Renderizado
         frame.render_widget(void_clipboard_message, clipboard_list_area);
     }
 
     let selection_indicator_paragraph = Paragraph::new(selection_indicator);
 
-    // Renderizado
     frame.render_widget(selection_indicator_paragraph, selection_indicator_area);
 }

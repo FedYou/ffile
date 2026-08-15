@@ -10,7 +10,6 @@ use crate::{
 };
 
 pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mut App) {
-    // Areas ---------
     let mut panel_area = metadata_area;
 
     panel_area.width = panel_area.width - 1;
@@ -34,8 +33,6 @@ pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mu
     selection_indicator_area.x =
         selection_indicator_area.x + metadata_list_area.width - selection_indicator_area.width;
 
-    // ----------
-
     let mut selection_indicator: String = "".to_string();
 
     let focus_modifier: Modifier = if app.active_panel == Panel::Metadata {
@@ -43,8 +40,6 @@ pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mu
     } else {
         Modifier::DIM
     };
-
-    // ---------
 
     let metadata_block = Block::new()
         .borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT)
@@ -58,7 +53,6 @@ pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mu
         .title_position(TitlePosition::Bottom)
         .title_alignment(HorizontalAlignment::Center);
 
-    // Renderizado
     frame.render_widget(metadata_block, panel_area);
 
     if let Some(metadata_entries) = &app.explorer.metadata {
@@ -92,18 +86,15 @@ pub fn render_metadata(frame: &mut ratatui::Frame, metadata_area: Rect, app: &mu
             .style(Style::default().add_modifier(Modifier::DIM).fg(Color::Cyan))
             .highlight_style(Style::default().bold().fg(Color::Cyan));
 
-        // Renderizado
         frame.render_stateful_widget(metadata_list, metadata_list_area, &mut list_state);
     } else {
         let no_metadata_message = Paragraph::new("Without metadata")
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM));
 
-        // Renderizado
         frame.render_widget(no_metadata_message, metadata_list_area);
     }
 
     let selection_indicator_paragraph = Paragraph::new(selection_indicator);
 
-    // Renderizado
     frame.render_widget(selection_indicator_paragraph, selection_indicator_area);
 }

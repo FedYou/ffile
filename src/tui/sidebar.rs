@@ -10,7 +10,6 @@ use crate::{
 };
 
 pub fn render_sidebar(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut App) {
-    // Areas ----------
     let mut bookmarks_list_area = sidebar_area.inner(Margin {
         horizontal: 0,
         vertical: 1,
@@ -18,8 +17,6 @@ pub fn render_sidebar(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut 
 
     bookmarks_list_area.width = bookmarks_list_area.width - 1;
     bookmarks_list_area.x = bookmarks_list_area.x + 1;
-
-    // ----------
 
     let sidebar_title = format!(" {} ", app.title);
 
@@ -64,7 +61,6 @@ pub fn render_sidebar(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut 
                 .fg(Color::Yellow),
         );
 
-    // Renderizado
     frame.render_stateful_widget(
         bookmarks_list,
         bookmarks_list_area,

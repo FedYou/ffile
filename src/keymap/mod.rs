@@ -7,7 +7,7 @@ use std::collections::HashMap;
 mod actions;
 pub use actions::Action;
 
-// ─── Tipos y estructuras de apoyo ────────────────────────────────────────
+// Tipos y estructuras de apoyo
 
 /// Estructura "cruda" del TOML: cada campo es un mapa `atajo -> nombre_accion`
 /// (ej. `"Ctrl-a" = "open_entry"`), separado por panel.
@@ -63,7 +63,7 @@ struct Shortcuts {
     file_clipboard: Vec<Shortcut>,
 }
 
-// ─── Parseo de teclas ─────────────────────────────────────────────────────
+// Parseo de teclas
 
 /// Busca `modifier` (ej. "Ctrl") dentro de `parts`; si lo encuentra lo
 /// remueve del vector y devuelve `true`. Se usa para ir "consumiendo" los
@@ -165,7 +165,7 @@ fn parse_key_event(s: &str) -> Option<KeyEvent> {
     })
 }
 
-// ─── Mapeo texto -> Action (por panel) ───────────────────────────────────
+// Mapeo texto -> Action (por panel)
 
 /// Acciones válidas en el grupo `global` (aplican en cualquier panel).
 fn parse_action_global(s: &str) -> Action {
@@ -222,7 +222,7 @@ fn parse_action_create(s: &str) -> Action {
     }
 }
 
-/// Acciones válidas cuando el panel activo es `Create`.
+/// Acciones válidas cuando el panel activo es `FileClipboard`.
 fn parse_action_file_clipboard(s: &str) -> Action {
     match s {
         "exit_file_clipboard" => Action::ExitFileClipboard,
@@ -232,28 +232,28 @@ fn parse_action_file_clipboard(s: &str) -> Action {
     }
 }
 
-// ───  Carga y resolución de atajos ───────────────────────────────────────
+// Carga y resolución de atajos
 
-/// ▸ Parsea el TOML crudo (`str`) a la estructura `Shortcuts`, aplicando el
+/// Arma un `Vec<Shortcut>` a partir del mapa `tecla -> nombre_accion` de
+/// un panel, usando `parse_action` para resolver el nombre de la acción.
+fn build(map: &HashMap<String, String>, parse_action: fn(&str) -> Action) -> Vec<Shortcut> {
+    map.iter()
+        .filter_map(|(key, action)| {
+            Some(Shortcut {
+                action: parse_action(action),
+                key_event: parse_key_event(key)?,
+            })
+        })
+        .collect()
+}
+
+/// Parsea el TOML crudo (`str`) a la estructura `Shortcuts`, aplicando el
 /// parser de acciones correspondiente a cada panel. Los pares clave/acción
 /// que no puedan interpretarse como tecla válida se descartan en silencio
 /// (`filter_map`).
 fn parse_shortcuts(str: &str) -> Shortcuts {
     let toml_parsed: ShortcutsToml =
         toml::from_str(str).expect("Error sintaxis invalida en el TOML de shortcuts");
-
-    /// Arma un `Vec<Shortcut>` a partir del mapa `tecla -> nombre_accion` de
-    /// un panel, usando `parse_action` para resolver el nombre de la acción.
-    fn build(map: &HashMap<String, String>, parse_action: fn(&str) -> Action) -> Vec<Shortcut> {
-        map.iter()
-            .filter_map(|(key, action)| {
-                Some(Shortcut {
-                    action: parse_action(action),
-                    key_event: parse_key_event(key)?,
-                })
-            })
-            .collect()
-    }
 
     Shortcuts {
         global: build(&toml_parsed.global, parse_action_global),
@@ -265,7 +265,7 @@ fn parse_shortcuts(str: &str) -> Shortcuts {
     }
 }
 
-/// ▸ Busca en `list` el primer `Shortcut` cuya tecla coincida con `ev`.
+/// Busca en `list` el primer `Shortcut` cuya tecla coincida con `ev`.
 fn get_active_action(list: Vec<Shortcut>, ev: &CrosstermKeyEvent) -> Option<Action> {
     if let Some(found) = list.iter().find(|s| s.key_event.matches(ev)) {
         return Some(found.action.clone());
@@ -273,7 +273,7 @@ fn get_active_action(list: Vec<Shortcut>, ev: &CrosstermKeyEvent) -> Option<Acti
     return None;
 }
 
-// ───  API pública ─────────────────────────────────────────────────────────
+// API pública
 
 /// Resuelve qué `Action` corresponde a un evento de teclado, dado el panel
 /// activo. Prioridad: primero los atajos `global`, después los específicos
@@ -316,7 +316,7 @@ pub fn get_action(ev: CrosstermKeyEvent, active_panel: &Panel) -> Action {
     return Action::None;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod tests {

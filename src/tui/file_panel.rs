@@ -36,7 +36,6 @@ fn render_file_header(frame: &mut ratatui::Frame, area: Rect, app: &mut App, mod
 }
 
 pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
-    // Areas ---------
     let panel_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
@@ -52,8 +51,6 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
     content_area.height = content_area.height - 1;
 
     let file_header_area = panel_layout[0];
-
-    // ---------
 
     let entry_count = app.explorer.entries.len();
     let mut list_state = ListState::default();
@@ -134,7 +131,6 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
     let empty_folder_message = Paragraph::new("Folder is empty")
         .style(Style::new().fg(Color::Green).add_modifier(Modifier::DIM));
 
-    // Renderizado
     render_file_header(frame, file_header_area, app, focus_modifier);
 
     frame.render_widget(file_panel_block, panel_body_area);

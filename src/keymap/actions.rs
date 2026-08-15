@@ -34,12 +34,13 @@ pub enum Action {
     MoveInputCursorRight,
     RemoveInputChar,
 
-    // Clipboard
+    /// Clipboard
     AddEntryFileClipboard,
     RemoveEntryFileClipboard,
     ClearFileClipboard,
     FocusFileClipboard,
     ExitFileClipboard,
+
     /// Acción vacía: no se hace nada.
     None,
 }

@@ -18,8 +18,6 @@ pub fn render_create_popup(frame: &mut ratatui::Frame, app: &mut App) {
         return;
     }
 
-    // Areas ---------
-
     let mut popup_area = frame.area().centered(
         ratatui::layout::Constraint::Length(50),
         ratatui::layout::Constraint::Length(7),
@@ -47,8 +45,6 @@ pub fn render_create_popup(frame: &mut ratatui::Frame, app: &mut App) {
     hints_area.height = 1;
 
     hints_area.y = popup_inner_area.bottom().saturating_sub(1);
-
-    // ---------
 
     let popup_block = Block::new()
         .title_alignment(HorizontalAlignment::Center)

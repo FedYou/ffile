@@ -8,7 +8,7 @@ use crate::global::{CONFIG_FILE_PATH, CONFIG_PATH};
 /// Config global: se carga una única vez y queda disponible para toda la app.
 static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
 
-// ─── Config ────────────────────────────────────────────────────────────────
+// Config
 
 /// Configuración del explorador, serializada desde el archivo
 /// `config.toml`. Todos los campos tienen un valor por defecto, así que
@@ -53,7 +53,7 @@ fn default_editor() -> String {
     "helix".to_string()
 }
 
-// ─── Funciones ─────────────────────────────────────────────────────────────
+// Funciones
 
 /// Devuelve la configuración global, cargándola una sola vez (la primera
 /// llamada) y guardándola en un `OnceLock`. Siempre se accede con lock.
@@ -82,8 +82,6 @@ fn get_config_file() -> Config {
 /// Genera una `Config` con todos los valores por defecto. Parsea un TOML
 /// vacío: como cada campo tiene su `#[serde(default = "...")]`, no da error.
 fn get_default_config() -> Config {
-    // Parsea un TOML vacío: como cada campo tiene un valor por defecto,
-    // no da error salvo que se escriban campos desconocidos.
     toml::from_str("").unwrap()
 }
 

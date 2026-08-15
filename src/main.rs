@@ -13,11 +13,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 
-// ─── Punto de entrada ────────────────────────────────────────────────────
+// Punto de entrada
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
-    // ──  Setup de terminal y watcher ───────────────────────────────────
+    // Setup de terminal y watcher
 
     let mut terminal = ratatui::init();
     execute!(stdout(), EnableBracketedPaste)?;
@@ -75,16 +75,15 @@ async fn main() -> Result<(), std::io::Error> {
     //  Fuerza un primer `app.update()` en la primera vuelta del loop
     let mut update_app = true;
 
-    // ── Loop principal ─────────────────────────────────────────────────
+    // Loop principal
 
     loop {
         if app.exit {
             break;
         }
 
-        //  1 y 2. Eventos del watcher y del teclado por canales tokio.
-        //  El timeout de 50ms hace que el loop siga sin bloquearse si no
-        //  llegan eventos, igual que el `poll` original.
+        // Eventos del watcher y del teclado por canales tokio; el timeout
+        // de 50ms evita bloquear el loop cuando no llegan eventos.
         tokio::select! {
             Some(event) = rx_fs.recv() => {
                 match event.kind {
@@ -134,9 +133,7 @@ async fn main() -> Result<(), std::io::Error> {
             update_app = false;
         }
 
-        // 3. Apertura de archivos con app externa (o editor, si es texto)
-        // Si el archivo es texto, se abre en el editor externo; si no,
-        // se abre con la app por defecto del sistema (open_file::file).
+        // Abre el archivo con la app externa (o en el editor si es texto).
         if let Some(path) = app.pending_external_actions.open_with_app.take() {
             let mime = mime_guess::from_path(&path).first_or_text_plain();
             if mime.type_() == "text" {
@@ -147,19 +144,13 @@ async fn main() -> Result<(), std::io::Error> {
             update_app = true;
         }
 
-        // 4. Render del TUI (no se dibuja mientras el editor esté abierto,
-        // porque el editor es dueño de la pantalla).
+        // Render del TUI (no se dibuja mientras el editor tiene la terminal).
         if !editor_open.load(Ordering::Relaxed) {
             let _ = terminal.draw(|frame| app.render(frame));
         }
 
-        // 5. Apertura de archivos en el editor externo
-        // Se lanza en un hilo para no bloquear el loop: la app sigue
-        // funcionando en segundo plano (watcher, updates) y cuando el editor
-        // se cierra, `rx_editor_done` restaura la terminal y refresca.
-        // El hilo activa `editor_open` justo antes de lanzar el editor, así
-        // el loop sigue dibujando la pantalla "Opening editor..." durante el
-        // arranque real y corta el render cuando el editor toma la terminal.
+        // Abre el archivo en el editor externo, en un hilo para no bloquear
+        // el loop; `rx_editor_done` restaura la terminal al cerrarse.
         if !editor_open.load(Ordering::Relaxed)
             && !editor_launching.load(Ordering::Relaxed)
             && let Some(path) = app.pending_external_actions.open_with_editor.clone()
@@ -176,9 +167,9 @@ async fn main() -> Result<(), std::io::Error> {
         }
     }
 
-    // ── Cierre ─────────────────────────────────────────────────────────
+    // Cierre
 
     execute!(stdout(), DisableBracketedPaste)?;
     ratatui::restore();
-    return Ok(());
+    Ok(())
 }

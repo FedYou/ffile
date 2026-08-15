@@ -12,8 +12,20 @@ pub struct SelectionIndex {
     pub excluded: Vec<usize>,
 }
 
+impl Default for SelectionIndex {
+    /// Índice vacío y no válido (sin selección activa).
+    fn default() -> Self {
+        Self {
+            selected: 0,
+            count: 0,
+            valid: false,
+            excluded: Vec::default(),
+        }
+    }
+}
+
 impl SelectionIndex {
-    // ── Inicialización ────────────────────────────────────────────────
+    // Inicialización
 
     /// Configura el índice para una lista de `count` elementos, dejándolo
     /// válido. `selected` y `excluded` son opcionales: si no se pasan, se
@@ -43,7 +55,7 @@ impl SelectionIndex {
         self.selected = selected;
     }
 
-    // ── Navegación ──────────────────────────────────────────────────────
+    // Navegación
 
     /// Avanza la selección una posición, saltando índices `excluded` y
     /// dando la vuelta al llegar al final (circular). Si el índice no es
@@ -95,32 +107,18 @@ impl SelectionIndex {
         self.selected = selected
     }
 
-    // ── Ajuste de rango ────────────────────────────────────────────────
+    // Ajuste de rango
 
     /// Adapta la selección cuando cambia la cantidad de elementos (`count`):
     /// si ahora hay 0 elementos, resetea el índice; si el elemento
     /// seleccionado quedó "afuera" del nuevo rango, lo mueve al último válido.
-    pub fn clamp_seleted(&mut self, count: usize) {
+    pub fn clamp_selected(&mut self, count: usize) {
         if count == 0 {
             self.reset();
         } else if self.valid {
-            // → Selecciona el último elemento si el índice seleccionado es
-            //   mayor a la cantidad de elementos actuales
             if self.selected > count.saturating_sub(1) {
                 self.selected = count.saturating_sub(1);
             }
-        }
-    }
-}
-
-impl Default for SelectionIndex {
-    /// Índice vacío y no válido (sin selección activa).
-    fn default() -> Self {
-        Self {
-            selected: 0,
-            count: 0,
-            valid: false,
-            excluded: Vec::default(),
         }
     }
 }
