@@ -125,6 +125,9 @@ async fn main() -> Result<(), std::io::Error> {
                 app.pending_external_actions.open_with_editor = None;
                 update_app = true;
             }
+            Some(event) = app.processes.rx.recv() => {
+                app.processes.handle_event(event);
+            }
             _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
         }
 

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::file_system::metadata::get_serialize_metadata;
 use crate::index::SelectionIndex;
 use crate::input::Input;
+use crate::process::ProcessManager;
 use arboard::Clipboard;
 use crossterm::event::KeyCode;
 use notify::{RecommendedWatcher, Watcher};
@@ -231,6 +232,7 @@ pub struct App {
     pub input: Input,
     pub pending_external_actions: PendingExternalActions,
     pub create_state: CreateState,
+    pub processes: ProcessManager,
 }
 
 impl App {
@@ -257,6 +259,7 @@ impl App {
             file_clipboard: FileClipboardState::default(),
             pending_external_actions: PendingExternalActions::default(),
             create_state: CreateState::default(),
+            processes: ProcessManager::new(),
         }
     }
 

@@ -5,4 +5,5 @@ pub mod global;
 pub mod index;
 pub mod input;
 pub mod keymap;
+pub mod process;
 pub mod tui;
