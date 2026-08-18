@@ -1,3 +1,4 @@
+use std::cmp;
 use std::fs::{self, File, read_link, symlink_metadata};
 use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -133,8 +134,32 @@ fn get_all_entries_on_sources(
     Ok(entries)
 }
 
-/// Copia un único archivo a su destino. Si falla o se cancela a mitad,
-/// elimina el archivo parcial del destino.
+#[cfg(target_os = "linux")]
+unsafe fn copy_file_range_wrapper(
+    source_fd: std::os::unix::io::RawFd,
+    destination_fd: std::os::unix::io::RawFd,
+    len: usize,
+) -> io::Result<usize> {
+    let ret = unsafe {
+        libc::copy_file_range(
+            source_fd,
+            std::ptr::null_mut(),
+            destination_fd,
+            std::ptr::null_mut(),
+            len,
+            0,
+        )
+    };
+    if ret < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(ret as usize)
+    }
+}
+
+const COPY_CHUNK_MIN: usize = 4 * 1024 * 1024;
+const COPY_TARGET_UPDATES: u64 = 128;
+
 async fn copy_file(
     entry: &CopyEntry,
     bytes_total: u64,
@@ -148,54 +173,125 @@ async fn copy_file(
     let mut output = File::create(&entry.destination)?;
 
     let result: io::Result<CopyFileExitStatus> = async {
-        // 64kb
-        let mut buffer = [0u8; 64 * 1024];
+        let mut bytes_copied: u64 = 0;
+        let entry_size = entry.size;
 
-        loop {
-            if cancel_flag.load(Ordering::Relaxed) {
-                return Ok(CopyFileExitStatus::Cancelled);
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::io::AsRawFd;
+            let source_fd = input.as_raw_fd();
+            let destination_fd = output.as_raw_fd();
+
+            let chunk_size = cmp::max(COPY_CHUNK_MIN, (entry_size / COPY_TARGET_UPDATES) as usize);
+
+            loop {
+                if cancel_flag.load(Ordering::Relaxed) {
+                    return Ok(CopyFileExitStatus::Cancelled);
+                }
+
+                let remaining = (entry_size - bytes_copied) as usize;
+                if remaining == 0 {
+                    break;
+                }
+
+                let to_copy = cmp::min(chunk_size, remaining);
+
+                match unsafe { copy_file_range_wrapper(source_fd, destination_fd, to_copy) } {
+                    Ok(0) => break,
+                    Ok(bytes) => {
+                        bytes_copied += bytes as u64;
+                        *bytes_done += bytes as u64;
+
+                        let progress = *bytes_done as f64 / bytes_total as f64 * 100.0;
+
+                        let elapsed = started_at.elapsed().as_secs_f64();
+                        let speed = if elapsed > 0.0 {
+                            // Se divide los bytes ya escritos por el tiempo transcurrido, por ej:
+                            // bytes_done=10  elepsed=5s;
+                            // 10b
+                            // --- =  2b/s
+                            // 4/s
+                            *bytes_done as f64 / elapsed
+                        } else {
+                            0.0
+                        };
+                        // Es la cantidad que falta de bytes
+                        let remaining_bytes = bytes_total.saturating_sub(*bytes_done);
+                        let eta = if speed > 0.0 {
+                            // Se divide por velocidad para dar un estimado, por ej:
+                            // remaining=10b speed=2b/s;
+                            // 10b    10
+                            // ---  = --- =  5s
+                            // 2b/s   2/s
+                            Some(Duration::from_secs_f64(remaining_bytes as f64 / speed))
+                        } else {
+                            None
+                        };
+
+                        let _ = tx
+                            .send(ProcessEvent::Progress {
+                                id: process_id,
+                                progress: Some(progress),
+                                bytes_done: Some(*bytes_done),
+                                bytes_total: Some(bytes_total),
+                                speed: Some(speed),
+                                eta,
+                                message: Some(format!("Copying {}", entry.src.display())),
+                            })
+                            .await;
+                    }
+                    Err(_) => break,
+                }
             }
-
-            let bytes_read = input.read(&mut buffer)?;
-
-            *bytes_done += bytes_read as u64;
-
-            let progress: f64 = *bytes_done as f64 / bytes_total as f64 * 100.0;
-
-            let elapsed = started_at.elapsed().as_secs_f64();
-            let speed = if elapsed > 0.0 {
-                *bytes_done as f64 / elapsed
-            } else {
-                0.0
-            };
-
-            let remaining = bytes_total.saturating_sub(*bytes_done);
-            let eta = if speed > 0.0 {
-                Some(Duration::from_secs_f64(remaining as f64 / speed))
-            } else {
-                None
-            };
-
-            let _ = tx
-                .send(ProcessEvent::Progress {
-                    id: process_id,
-                    progress: Some(progress),
-                    bytes_done: Some(*bytes_done),
-                    bytes_total: Some(bytes_total),
-                    speed: Some(speed),
-                    eta,
-                    message: Some(format!("Copying {}", entry.src.display())),
-                })
-                .await;
-
-            if bytes_read == 0 {
-                break;
-            }
-
-            output.write_all(&buffer[..bytes_read])?;
         }
 
-        output.flush()?;
+        if bytes_copied < entry_size {
+            let chunk_size = cmp::max(COPY_CHUNK_MIN, (entry_size / COPY_TARGET_UPDATES) as usize);
+            let mut buffer = vec![0u8; chunk_size];
+
+            loop {
+                if cancel_flag.load(Ordering::Relaxed) {
+                    return Ok(CopyFileExitStatus::Cancelled);
+                }
+
+                let bytes_read = input.read(&mut buffer)?;
+                if bytes_read == 0 {
+                    break;
+                }
+
+                output.write_all(&buffer[..bytes_read])?;
+
+                *bytes_done += bytes_read as u64;
+
+                let progress = *bytes_done as f64 / bytes_total as f64 * 100.0;
+
+                let elapsed = started_at.elapsed().as_secs_f64();
+                let speed = if elapsed > 0.0 {
+                    *bytes_done as f64 / elapsed
+                } else {
+                    0.0
+                };
+
+                let remaining_bytes = bytes_total.saturating_sub(*bytes_done);
+                let eta = if speed > 0.0 {
+                    Some(Duration::from_secs_f64(remaining_bytes as f64 / speed))
+                } else {
+                    None
+                };
+
+                let _ = tx
+                    .send(ProcessEvent::Progress {
+                        id: process_id,
+                        progress: Some(progress),
+                        bytes_done: Some(*bytes_done),
+                        bytes_total: Some(bytes_total),
+                        speed: Some(speed),
+                        eta,
+                        message: Some(format!("Copying {}", entry.src.display())),
+                    })
+                    .await;
+            }
+        }
 
         fs::set_permissions(&entry.destination, fs::Permissions::from_mode(entry.mode))?;
 
