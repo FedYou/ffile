@@ -22,27 +22,32 @@ enum CopyFileExitStatus {
     Cancelled,
 }
 
-fn unique_filename(path: &Path) -> PathBuf {
-    if !path.exists() {
+fn unique_filename(path: &Path, is_dir: bool) -> PathBuf {
+    if symlink_metadata(&path).is_err() {
         return path.to_path_buf();
     }
 
     let parent = path.parent().unwrap_or(Path::new("."));
     let stem = path.file_stem().unwrap().to_string_lossy();
+    let basename = path.file_name().unwrap().to_string_lossy();
 
-    let extension = path.extension().map(|e| e.to_string_lossy().into_owned());
+    let file_extension = path.extension().map(|e| e.to_string_lossy().into_owned());
 
     let mut counter = 1;
 
     loop {
-        let filename = match &extension {
-            Some(ext) => format!("{stem} ({counter}).{ext}"),
-            None => format!("{stem} ({counter})"),
+        let filename = if is_dir {
+            format!("{basename} ({counter})")
+        } else {
+            match &file_extension {
+                Some(ext) => format!("{stem} ({counter}).{ext}"),
+                None => format!("{stem} ({counter})"),
+            }
         };
 
         let candidate = parent.join(filename);
 
-        if !candidate.exists() {
+        if symlink_metadata(&candidate).is_err() {
             return candidate;
         }
 
@@ -114,7 +119,7 @@ fn get_all_entries_on_sources(
             continue;
         };
 
-        let dir_destination = unique_filename(destination.join(name).as_path());
+        let dir_destination = unique_filename(destination.join(name).as_path(), metadata.is_dir());
 
         entries.push(CopyEntry {
             src: source.clone(),
