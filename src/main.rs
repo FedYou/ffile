@@ -109,6 +109,8 @@ async fn main() -> Result<(), std::io::Error> {
                     }
                     _ => {}
                 }
+                let rx_keys_len = rx_keys.len().saturating_sub(1);
+                for _ in 0..rx_keys_len { let _ = rx_keys.try_recv().is_ok(); }
             }
             Some(_) = rx_editor_done.recv() => {
                 // El editor externo terminó: restauro la terminal y vuelvo a
