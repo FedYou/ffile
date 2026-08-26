@@ -167,6 +167,7 @@ const COPY_TARGET_UPDATES: u64 = 128;
 
 async fn copy_file(
     entry: &CopyEntry,
+    entries_done: &mut usize,
     bytes_total: u64,
     bytes_done: &mut u64,
     process_id: ProcessId,
@@ -241,7 +242,12 @@ async fn copy_file(
                                 bytes_total: Some(bytes_total),
                                 speed: Some(speed),
                                 eta,
-                                message: Some(format!("Copying {}", entry.src.display())),
+                                message: Some(format!(
+                                    "Copying {}",
+                                    entry.src.file_name().unwrap().display()
+                                )),
+                                entries_total: None,
+                                entries_done: Some(*entries_done),
                             })
                             .await;
                     }
@@ -292,7 +298,12 @@ async fn copy_file(
                         bytes_total: Some(bytes_total),
                         speed: Some(speed),
                         eta,
-                        message: Some(format!("Copying {}", entry.src.display())),
+                        message: Some(format!(
+                            "Copying {}",
+                            entry.src.file_name().unwrap().display()
+                        )),
+                        entries_total: None,
+                        entries_done: Some(*entries_done),
                     })
                     .await;
             }
@@ -334,16 +345,34 @@ pub async fn copy(
             speed: None,
             eta: None,
             message: Some("Obtained list of files and directories...".to_string()),
+            entries_total: None,
+            entries_done: None,
         })
         .await;
 
     let entries = get_all_entries_on_sources(sources, &destination)?;
+    let mut entries_done: usize = 0;
+
     let bytes_total: u64 = entries.iter().map(|e| e.size).sum();
     let mut bytes_done: u64 = 0;
     let started_at = Instant::now();
 
     let mut errors: Vec<String> = vec![];
     let mut cancelled = false;
+
+    let _ = tx
+        .send(ProcessEvent::Progress {
+            id: process_id,
+            progress: None,
+            bytes_done: None,
+            bytes_total: None,
+            speed: None,
+            eta: None,
+            message: None,
+            entries_total: Some(entries.len()),
+            entries_done: None,
+        })
+        .await;
 
     for entry in entries {
         if cancel_flag.load(Ordering::Relaxed) {
@@ -353,17 +382,24 @@ pub async fn copy(
 
         if entry.is_symlink {
             match std::os::unix::fs::symlink(&entry.src, &entry.destination) {
-                Ok(()) => bytes_done += entry.size,
+                Ok(()) => {
+                    bytes_done += entry.size;
+                    entries_done += 1;
+                }
                 Err(err) => errors.push(format!("{}: {err}", entry.destination.display())),
             }
         } else if entry.is_dir {
             match fs::create_dir_all(&entry.destination) {
-                Ok(()) => bytes_done += entry.size,
+                Ok(()) => {
+                    bytes_done += entry.size;
+                    entries_done += 1;
+                }
                 Err(err) => errors.push(format!("{}: {err}", entry.destination.display())),
             }
         } else {
             match copy_file(
                 &entry,
+                &mut entries_done,
                 bytes_total,
                 &mut bytes_done,
                 process_id,
@@ -373,7 +409,9 @@ pub async fn copy(
             )
             .await
             {
-                Ok(CopyFileExitStatus::Done) => {}
+                Ok(CopyFileExitStatus::Done) => {
+                    entries_done += 1;
+                }
                 Ok(CopyFileExitStatus::Cancelled) => {
                     cancelled = true;
                     break;
@@ -388,13 +426,22 @@ pub async fn copy(
     }
 
     if !errors.is_empty() {
-        return Err(io::Error::other(format!(
-            "There were errors when copying ({}/{} bytes):\n{}",
-            bytes_done,
-            bytes_total,
-            errors.join("\n")
-        )));
+        return Err(io::Error::other(errors.join("\n")));
     }
+
+    let _ = tx
+        .send(ProcessEvent::Progress {
+            id: process_id,
+            progress: None,
+            bytes_done: None,
+            bytes_total: Some(bytes_total),
+            speed: None,
+            eta: None,
+            message: None,
+            entries_total: None,
+            entries_done: Some(entries_done),
+        })
+        .await;
 
     Ok(())
 }

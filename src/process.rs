@@ -1,4 +1,5 @@
 use crate::file_system::copy::copy;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,6 +23,7 @@ pub enum ProcessStatus {
 
 #[derive(Debug, Clone)]
 pub struct Process {
+    pub pwd: PathBuf,
     pub id: ProcessId,
     pub kind: ProcessKind,
 
@@ -38,6 +40,8 @@ pub struct Process {
     pub started_at: Instant,
     pub duration: Option<Duration>,
 
+    pub entries_total: Option<usize>,
+    pub entries_done: Option<usize>,
     /// Flag cooperativo de cancelación: el worker lo revisa entre
     /// operaciones y detiene la copia.
     pub cancel_flag: Arc<AtomicBool>,
@@ -52,6 +56,8 @@ pub enum ProcessEvent {
         speed: Option<f64>,
         eta: Option<Duration>,
         message: Option<String>,
+        entries_total: Option<usize>,
+        entries_done: Option<usize>,
     },
     Finished {
         id: ProcessId,
@@ -63,7 +69,7 @@ pub enum ProcessEvent {
 }
 
 pub struct ProcessManager {
-    pub processes: HashMap<ProcessId, Process>,
+    pub processes: IndexMap<ProcessId, Process>,
     pub next_id: ProcessId,
     pub task: HashMap<ProcessId, tokio::task::JoinHandle<()>>,
     pub tx: tokio::sync::mpsc::Sender<ProcessEvent>,
@@ -74,7 +80,7 @@ impl ProcessManager {
     pub fn new() -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         Self {
-            processes: HashMap::new(),
+            processes: IndexMap::new(),
             task: HashMap::new(),
             next_id: 0,
             tx,
@@ -92,6 +98,8 @@ impl ProcessManager {
                 speed,
                 eta,
                 message,
+                entries_total,
+                entries_done,
             } => {
                 if let Some(process) = self.processes.get_mut(&id) {
                     process.progress = progress;
@@ -100,6 +108,10 @@ impl ProcessManager {
                     process.speed = speed;
                     process.eta = eta;
                     process.message = message;
+                    if process.entries_total.is_none() {
+                        process.entries_total = entries_total
+                    }
+                    process.entries_done = entries_done
                 }
             }
             ProcessEvent::Failed { id, error } => {
@@ -125,7 +137,6 @@ impl ProcessManager {
                     process.status = ProcessStatus::Finished;
                     process.progress = None;
                     process.bytes_done = None;
-                    process.bytes_total = None;
                     process.speed = None;
                     process.eta = None;
                     process.message = None;
@@ -136,8 +147,8 @@ impl ProcessManager {
         }
     }
 
-    pub fn cancel(&mut self, id: ProcessId) {
-        if let Some(process) = self.processes.get_mut(&id)
+    pub fn cancel(&mut self, id: &ProcessId) {
+        if let Some(process) = self.processes.get_mut(id)
             && process.status == ProcessStatus::Running
         {
             process.status = ProcessStatus::Cancelled;
@@ -153,6 +164,7 @@ impl ProcessManager {
         let cancel_flag = Arc::new(AtomicBool::new(false));
 
         let process = Process {
+            pwd: destination.clone(),
             id,
             kind: ProcessKind::Copy,
             status: ProcessStatus::Running,
@@ -163,6 +175,8 @@ impl ProcessManager {
             speed: None,
             eta: None,
             message: None,
+            entries_total: None,
+            entries_done: None,
             started_at: std::time::Instant::now(),
             duration: None,
             cancel_flag: cancel_flag.clone(),
@@ -181,9 +195,17 @@ impl ProcessManager {
             let _ = tx.send(event).await;
         });
 
-        self.processes.insert(id, process);
+        self.processes.shift_insert(0, id, process);
         self.task.insert(id, task);
 
         id
+    }
+
+    pub fn get_index(&mut self, index: usize) -> Option<(&ProcessId, &Process)> {
+        self.processes.get_index(index)
+    }
+
+    pub fn len(&self) -> usize {
+        self.processes.len()
     }
 }
