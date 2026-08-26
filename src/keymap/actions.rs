@@ -41,6 +41,12 @@ pub enum Action {
     FocusFileClipboard,
     ExitFileClipboard,
 
+    // Process Panel
+    OpenProcessPanel,
+    ExitProcessPanel,
+    CancelProcess,
+    AddCopyProcess,
+
     /// Acción vacía: no se hace nada.
     None,
 }

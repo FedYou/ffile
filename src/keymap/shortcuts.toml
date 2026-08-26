@@ -4,6 +4,7 @@ Up = "move_up"
 Down = "move_down"
 j = "move_down"
 k = "move_up"
+Ctrl-p = "open_process"
 
 [file_panel]
 h = "go_parent"
@@ -17,6 +18,7 @@ e = "open_editor"
 n = "new_entry"
 y = "copy_entry"
 c = "focus_clipboard"
+p = "add_copy_process"
 
 [sidebar]
 h = "focus_files"
@@ -48,3 +50,12 @@ Backspace = "delete_char"
 Esc = "exit_clipboard"
 d = "remove_entry"
 c = "clear_clipboard"
+
+# -------------------------
+# ----- Process Mode
+# -------------------------
+
+[process]
+Esc = "exit_process"
+Ctrl-c = "cancel_process"
+c = "cancel_process"

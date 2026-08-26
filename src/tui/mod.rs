@@ -4,9 +4,12 @@ mod file_clipboard;
 mod file_panel;
 mod input;
 mod metadata;
+mod process;
 mod screen;
 mod sidebar;
 mod utils;
+
+use crate::app::Panel;
 
 use super::app::App;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -50,6 +53,11 @@ pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
     let file_panel_area = content_layout[0];
     let metadata_area = footer_layout[0];
     let clipboard_area = footer_layout[1];
+
+    if app.active_panel == Panel::Process {
+        process::render_process_panel(frame, frame.area(), app);
+        return;
+    }
 
     sidebar::render_sidebar(frame, sidebar_area, app);
 

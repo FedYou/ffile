@@ -25,6 +25,8 @@ struct ShortcutsToml {
     create: HashMap<String, String>,
     #[serde(default)]
     file_clipboard: HashMap<String, String>,
+    #[serde(default)]
+    process: HashMap<String, String>,
 }
 
 /// Representación normalizada de una combinación de teclas.
@@ -61,6 +63,7 @@ struct Shortcuts {
     metadata: Vec<Shortcut>,
     create: Vec<Shortcut>,
     file_clipboard: Vec<Shortcut>,
+    process: Vec<Shortcut>,
 }
 
 // Parseo de teclas
@@ -173,6 +176,7 @@ fn parse_action_global(s: &str) -> Action {
         "exit" => Action::Exit,
         "move_up" => Action::MoveUp,
         "move_down" => Action::MoveDown,
+        "open_process" => Action::OpenProcessPanel,
         _ => Action::None,
     }
 }
@@ -190,6 +194,7 @@ fn parse_action_file_panel(s: &str) -> Action {
         "focus_clipboard" => Action::FocusFileClipboard,
         "move_up" => Action::MoveUp,
         "move_down" => Action::MoveDown,
+        "add_copy_process" => Action::AddCopyProcess,
         _ => Action::None,
     }
 }
@@ -240,6 +245,17 @@ fn parse_action_file_clipboard(s: &str) -> Action {
     }
 }
 
+/// Acciones válidas cuando el panel activo es `FileClipboard`.
+fn parse_action_process(s: &str) -> Action {
+    match s {
+        "exit_process" => Action::ExitProcessPanel,
+        "cancel_process" => Action::CancelProcess,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
 // Carga y resolución de atajos
 
 /// Arma un `Vec<Shortcut>` a partir del mapa `tecla -> nombre_accion` de
@@ -270,6 +286,7 @@ fn parse_shortcuts(str: &str) -> Shortcuts {
         metadata: build(&toml_parsed.metadata, parse_action_metadata),
         create: build(&toml_parsed.create, parse_action_create),
         file_clipboard: build(&toml_parsed.file_clipboard, parse_action_file_clipboard),
+        process: build(&toml_parsed.process, parse_action_process),
     }
 }
 
@@ -316,6 +333,11 @@ pub fn get_action(ev: CrosstermKeyEvent, active_panel: &Panel) -> Action {
         }
         Panel::FileClipboard => {
             if let Some(a) = get_active_action(shortcuts.file_clipboard, &ev) {
+                return a;
+            }
+        }
+        Panel::Process => {
+            if let Some(a) = get_active_action(shortcuts.process, &ev) {
                 return a;
             }
         }

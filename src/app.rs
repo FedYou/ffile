@@ -35,6 +35,8 @@ pub enum Panel {
     Create,
     /// Clipboard de los archivos/directorios.
     FileClipboard,
+    /// Panel de los procesos de archivos
+    Process,
 }
 
 /// Estado del panel para crear de archivos/directorios.
@@ -355,6 +357,11 @@ impl App {
             Action::ClearFileClipboard => self.action_clear_file_clipboard(),
             Action::FocusFileClipboard => self.action_focus_file_clipboard(),
             Action::ExitFileClipboard => self.action_exit_file_clipboard(),
+
+            Action::OpenProcessPanel => self.action_open_process_panel(),
+            Action::ExitProcessPanel => self.action_exit_process_panel(),
+            Action::CancelProcess => self.action_cancel_process(),
+            Action::AddCopyProcess => self.action_add_copy_process(),
             _ => {}
         }
     }
@@ -714,5 +721,43 @@ impl App {
     fn action_exit_file_clipboard(&mut self) {
         self.active_panel = Panel::FilePanel;
         self.panels[Panel::FileClipboard].valid = false;
+    }
+
+    // Process panel
+
+    fn action_open_process_panel(&mut self) {
+        if self.active_panel == Panel::Process {
+            return;
+        }
+
+        self.active_panel = Panel::Process;
+
+        if self.processes.len() > 0 {
+            self.panels[Panel::Process].setup(self.processes.len(), None, None);
+        }
+    }
+
+    fn action_exit_process_panel(&mut self) {
+        self.active_panel = Panel::FilePanel;
+        self.panels[Panel::Process].valid = false;
+    }
+
+    fn action_cancel_process(&mut self) {
+        if let Some((_, process)) = self
+            .processes
+            .get_index(self.panels[Panel::Process].selected)
+        {
+            let id = process.id;
+            self.processes.cancel(&id);
+        }
+    }
+
+    fn action_add_copy_process(&mut self) {
+        if self.file_clipboard.len() == 0 {
+            return;
+        }
+
+        self.processes
+            .spawn_copy(self.file_clipboard.get(), self.explorer.get_pwd());
     }
 }

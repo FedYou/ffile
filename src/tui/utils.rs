@@ -1,5 +1,22 @@
 use ratatui::style::Color;
 
+pub fn milliseconds_to_string(ms: u128) -> String {
+    let hours = ms / 3_600_000;
+    let minutes = (ms % 3_600_000) / 60_000;
+    let seconds = (ms % 60_000) / 1_000;
+    let millis = ms % 1_000;
+
+    if hours > 0 {
+        format!("{hours}h {minutes:02}m")
+    } else if minutes > 0 {
+        format!("{minutes}m {seconds:02}s")
+    } else if seconds > 0 {
+        format!("{seconds}s")
+    } else {
+        format!("{millis}ms")
+    }
+}
+
 pub fn truncate_with_ellipsis(max_chars: usize, text: String) -> String {
     if text.chars().count() > max_chars {
         let truncated: String = text.chars().take(max_chars.saturating_sub(3)).collect();
