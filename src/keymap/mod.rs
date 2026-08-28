@@ -194,6 +194,7 @@ fn parse_action_file_panel(s: &str) -> Action {
         "open_entry" => Action::OpenEntry,
         "open_editor" => Action::OpenEditor,
         "go_parent" => Action::GoToParentDir,
+        "show_hidden_files" => Action::ShowHiddenFiles,
         "focus_metadata" => Action::FocusMetadata,
         "new_entry" => Action::OpenCreatePanel,
         "delete_entry" => Action::OpenDeletePanel,

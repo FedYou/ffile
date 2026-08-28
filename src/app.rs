@@ -199,6 +199,7 @@ pub struct ExplorerState {
     pub entries: Vec<Entry>,
     /// Metadata serializada del elemento seleccionado, lista para mostrar.
     pub metadata: Option<Vec<(String, String)>>,
+    pub show_hidden: bool,
 }
 
 impl Default for ExplorerState {
@@ -237,6 +238,7 @@ impl Default for ExplorerState {
             bookmarks: get_bookmarks(),
             entries,
             metadata,
+            show_hidden: config.show_hidden_files.clone(),
         }
     }
 }
@@ -382,6 +384,7 @@ impl App {
             Action::OpenEntry => self.action_open_selected_entry(),
             Action::OpenEditor => self.action_open_selected_in_editor(),
             Action::GoToParentDir => self.action_go_to_parent_dir(),
+            Action::ShowHiddenFiles => self.action_change_view_hidden_files(),
 
             Action::FocusFilePanel => self.action_focus_file_panel(),
             Action::FocusSideBar => self.action_focus_sidebar_panel(),
@@ -446,7 +449,7 @@ impl App {
             path: self.explorer.pwd.clone(),
             sort: config.sort.clone(),
             invert: config.invert_sort.clone(),
-            show_hidden: config.show_hidden_files,
+            show_hidden: self.explorer.show_hidden,
             filter: None,
         }
     }
@@ -629,6 +632,11 @@ impl App {
             let path = entry.path.clone();
             self.pending_external_actions.open_with_editor = Some(path);
         }
+    }
+
+    fn action_change_view_hidden_files(&mut self) {
+        self.explorer.show_hidden = !self.explorer.show_hidden;
+        self.update();
     }
 
     // Acciones: panel Metadata

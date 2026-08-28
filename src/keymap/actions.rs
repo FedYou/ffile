@@ -23,6 +23,7 @@ pub enum Action {
     OpenEntry,
     OpenEditor,
     GoToParentDir,
+    ShowHiddenFiles,
 
     /// Panel de creación de archivos/directorios.
     OpenCreatePanel,
