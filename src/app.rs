@@ -93,7 +93,7 @@ impl FileClipboardState {
     pub fn add(&mut self, path: PathBuf) {
         let exist = path.as_path().exists();
 
-        self.list.push(FileClipboardItem { path, exist });
+        self.list.insert(0, FileClipboardItem { path, exist });
     }
 
     /// Actualiza el estado de si esa ruta de archivo/directorio existe
@@ -113,6 +113,16 @@ impl FileClipboardState {
         self.update_states();
     }
 
+    pub fn remove_exist(&mut self, path: &PathBuf) -> bool {
+        if let Some(index) = self.list.iter().position(|item| &item.path == path) {
+            self.list.remove(index);
+            self.update_states();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     pub fn clear(&mut self) {
         self.list.clear();
     }
@@ -120,6 +130,11 @@ impl FileClipboardState {
     pub fn get(&self) -> Vec<PathBuf> {
         self.list.iter().map(|i| i.path.clone()).collect()
     }
+
+    pub fn exist(&self, path: &PathBuf) -> bool {
+        self.list.iter().find(|i| &i.path == path).is_some()
+    }
+
     pub fn len(&self) -> usize {
         self.list.len()
     }
@@ -675,13 +690,20 @@ impl App {
 
             self.file_clipboard.add(entry_path);
             self.panels[Panel::FileClipboard].count = self.file_clipboard.len();
-            self.panels[Panel::FileClipboard]
-                .set_selected(self.file_clipboard.len().saturating_sub(1));
+            self.panels[Panel::FileClipboard].set_selected(0);
         }
     }
 
     /// Elimina el entry seleccionado de la lista del FileClipboard
     fn action_remove_entry_file_clipboard(&mut self) {
+        if self.active_panel == Panel::FilePanel
+            && let Some(entry) = self.get_current_entry()
+            && self.file_clipboard.remove_exist(&entry.path.clone())
+        {
+            self.panels[Panel::FileClipboard].count = self.file_clipboard.len();
+            self.panels[Panel::FileClipboard].clamp_selected(self.file_clipboard.len());
+        }
+
         if self.active_panel != Panel::FileClipboard {
             return;
         }
@@ -689,6 +711,7 @@ impl App {
         self.file_clipboard
             .remove(self.panels[Panel::FileClipboard].selected);
 
+        self.panels[Panel::FileClipboard].count = self.file_clipboard.len();
         self.panels[Panel::FileClipboard].clamp_selected(self.file_clipboard.len());
 
         if self.file_clipboard.len() == 0 {

@@ -94,6 +94,12 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
         .entries
         .iter()
         .map(|entry| {
+            let entry_icon_is_selected = if app.file_clipboard.exist(&entry.path) {
+                " "
+            } else {
+                ""
+            };
+
             let entry_icon = get_file_icon(
                 &entry.metadata.name,
                 &entry.metadata.ext.clone().unwrap_or("".to_string()),
@@ -106,6 +112,7 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
             );
 
             let entry_line = Line::from(vec![
+                Span::raw(entry_icon_is_selected),
                 Span::styled(
                     entry_icon.to_string(),
                     Style::default().fg(icon_color).add_modifier(Modifier::DIM),

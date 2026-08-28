@@ -17,6 +17,7 @@ m = "focus_metadata"
 e = "open_editor"
 n = "new_entry"
 y = "copy_entry"
+Y = "remove_entry_clipboard"
 c = "focus_clipboard"
 p = "add_copy_process"
 

@@ -198,6 +198,7 @@ fn parse_action_file_panel(s: &str) -> Action {
         "move_up" => Action::MoveUp,
         "move_down" => Action::MoveDown,
         "add_copy_process" => Action::AddCopyProcess,
+        "remove_entry_clipboard" => Action::RemoveEntryFileClipboard,
         _ => Action::None,
     }
 }

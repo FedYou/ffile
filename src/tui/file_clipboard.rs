@@ -9,7 +9,7 @@ use ratatui::{
 
 use crate::{
     app::{App, Panel},
-    tui::utils::truncate_with_ellipsis,
+    tui::utils::truncate_with_leading_ellipsis,
 };
 
 pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, app: &mut App) {
@@ -69,7 +69,7 @@ pub fn render_file_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, a
                     Modifier::DIM
                 };
 
-                ListItem::new(truncate_with_ellipsis(
+                ListItem::new(truncate_with_leading_ellipsis(
                     clipboard_list_area.width as usize,
                     i.path.to_string_lossy().to_string(),
                 ))
