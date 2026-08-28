@@ -109,7 +109,7 @@ fn parse_key_event(s: &str) -> Option<KeyEvent> {
 
     // Consume los modificadores presentes;
     let ctrl: bool = exist_modifier(&mut parts, "Ctrl");
-    let shift: bool = exist_modifier(&mut parts, "Shift");
+    let mut shift: bool = exist_modifier(&mut parts, "Shift");
     let alt: bool = exist_modifier(&mut parts, "Alt");
 
     if parts.len() > 1 {
@@ -148,6 +148,9 @@ fn parse_key_event(s: &str) -> Option<KeyEvent> {
         str if str.len() == 1 => {
             let ch = str.chars().next().unwrap();
             if !ch.is_control() {
+                if ch.is_ascii_uppercase() {
+                    shift = true;
+                }
                 KeyCode::Char(ch)
             } else {
                 return None;
