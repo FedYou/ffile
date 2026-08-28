@@ -24,6 +24,8 @@ struct ShortcutsToml {
     #[serde(default)]
     create: HashMap<String, String>,
     #[serde(default)]
+    delete: HashMap<String, String>,
+    #[serde(default)]
     file_clipboard: HashMap<String, String>,
     #[serde(default)]
     process: HashMap<String, String>,
@@ -62,6 +64,7 @@ struct Shortcuts {
     sidebar: Vec<Shortcut>,
     metadata: Vec<Shortcut>,
     create: Vec<Shortcut>,
+    delete: Vec<Shortcut>,
     file_clipboard: Vec<Shortcut>,
     process: Vec<Shortcut>,
 }
@@ -193,6 +196,7 @@ fn parse_action_file_panel(s: &str) -> Action {
         "go_parent" => Action::GoToParentDir,
         "focus_metadata" => Action::FocusMetadata,
         "new_entry" => Action::OpenCreatePanel,
+        "delete_entry" => Action::OpenDeletePanel,
         "copy_entry" => Action::AddEntryFileClipboard,
         "focus_clipboard" => Action::FocusFileClipboard,
         "move_up" => Action::MoveUp,
@@ -233,6 +237,15 @@ fn parse_action_create(s: &str) -> Action {
         "move_cursor_left" => Action::MoveInputCursorLeft,
         "move_cursor_right" => Action::MoveInputCursorRight,
         "delete_char" => Action::RemoveInputChar,
+        _ => Action::None,
+    }
+}
+
+/// Acciones válidas cuando el panel activo es `Delete`.
+fn parse_action_delete(s: &str) -> Action {
+    match s {
+        "cancel_delete" => Action::CancelDelete,
+        "confirm_delete" => Action::ConfirmDelete,
         _ => Action::None,
     }
 }
@@ -291,6 +304,7 @@ fn parse_shortcuts(str: &str) -> Shortcuts {
         create: build(&toml_parsed.create, parse_action_create),
         file_clipboard: build(&toml_parsed.file_clipboard, parse_action_file_clipboard),
         process: build(&toml_parsed.process, parse_action_process),
+        delete: build(&toml_parsed.delete, parse_action_delete),
     }
 }
 
@@ -332,6 +346,11 @@ pub fn get_action(ev: CrosstermKeyEvent, active_panel: &Panel) -> Action {
         }
         Panel::Create => {
             if let Some(a) = get_active_action(shortcuts.create, &ev) {
+                return a;
+            }
+        }
+        Panel::Delete => {
+            if let Some(a) = get_active_action(shortcuts.delete, &ev) {
                 return a;
             }
         }

@@ -29,6 +29,11 @@ pub enum Action {
     CancelCreate,
     ConfirmCreate,
 
+    /// Panel de eliminar archivos/directorios.
+    OpenDeletePanel,
+    CancelDelete,
+    ConfirmDelete,
+
     /// Movimiento del cursor dentro del input.
     MoveInputCursorLeft,
     MoveInputCursorRight,

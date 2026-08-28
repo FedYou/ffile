@@ -1,5 +1,6 @@
 mod corners;
 mod create;
+mod delete;
 mod file_clipboard;
 mod file_panel;
 mod input;
@@ -70,4 +71,5 @@ pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
     corners::render_panel_corners(frame, sidebar_area, file_panel_area, metadata_area);
 
     create::render_create_popup(frame, app);
+    delete::render_delete_popup(frame, app);
 }

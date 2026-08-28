@@ -17,7 +17,7 @@ use crate::file_system::directories::{
 };
 use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
 use crate::keymap::Action;
-use crate::tui;
+use crate::{file_system, tui};
 use enum_map::{Enum, EnumMap};
 
 // Enums y Structs
@@ -33,6 +33,8 @@ pub enum Panel {
     Metadata,
     /// Popup para crear archivos/directorios.
     Create,
+    /// Popup para eliminar archivos/directorios.
+    Delete,
     /// Clipboard de los archivos/directorios.
     FileClipboard,
     /// Panel de los procesos de archivos
@@ -67,6 +69,33 @@ impl CreateState {
     /// Cierra el popup.
     fn close(&mut self) {
         *self = CreateState::Closed;
+    }
+}
+
+pub enum DeleteState {
+    Closed,
+    Open,
+    Error(Error),
+}
+
+impl Default for DeleteState {
+    fn default() -> Self {
+        DeleteState::Closed
+    }
+}
+
+impl DeleteState {
+    /// Cambia el estado a `Error`
+    fn fail(&mut self, err: Error) {
+        *self = DeleteState::Error(err);
+    }
+    /// Abre el popup en modo edición.
+    fn open(&mut self) {
+        *self = DeleteState::Open;
+    }
+    /// Cierra el popup.
+    fn close(&mut self) {
+        *self = DeleteState::Closed;
     }
 }
 
@@ -249,6 +278,7 @@ pub struct App {
     pub input: Input,
     pub pending_external_actions: PendingExternalActions,
     pub create_state: CreateState,
+    pub delete_state: DeleteState,
     pub processes: ProcessManager,
 }
 
@@ -276,6 +306,7 @@ impl App {
             file_clipboard: FileClipboardState::default(),
             pending_external_actions: PendingExternalActions::default(),
             create_state: CreateState::default(),
+            delete_state: DeleteState::default(),
             processes: ProcessManager::new(),
         }
     }
@@ -362,6 +393,10 @@ impl App {
             Action::OpenCreatePanel => self.action_open_create_panel(),
             Action::ConfirmCreate => self.action_confirm_create(),
             Action::CancelCreate => self.action_cancel_create(),
+
+            Action::OpenDeletePanel => self.action_open_delete_panel(),
+            Action::ConfirmDelete => self.action_confirm_delete(),
+            Action::CancelDelete => self.action_cancel_delete(),
 
             Action::MoveInputCursorLeft => self.input.move_cursor_left(),
             Action::MoveInputCursorRight => self.input.move_cursor_right(),
@@ -504,6 +539,10 @@ impl App {
         File::create(full_path)?;
 
         Ok(())
+    }
+
+    fn delete_entry(&self, path: PathBuf) -> Result<(), Error> {
+        file_system::delete::delete(path)
     }
 
     // Acciones: movimiento
@@ -669,6 +708,36 @@ impl App {
         self.create_state.close();
         self.active_panel = Panel::FilePanel;
         self.input.clear();
+    }
+
+    // Acciones: panel Delete
+    fn action_open_delete_panel(&mut self) {
+        if self.explorer.entries.is_empty() {
+            return;
+        }
+
+        self.active_panel = Panel::Delete;
+        self.delete_state.open();
+    }
+
+    fn action_confirm_delete(&mut self) {
+        if let DeleteState::Error(_) = self.delete_state {
+            return;
+        }
+
+        if let Some(entry) = self.get_current_entry() {
+            if let Err(err) = self.delete_entry(entry.path.clone()) {
+                self.delete_state.fail(err);
+            } else {
+                self.active_panel = Panel::FilePanel;
+                self.delete_state.close();
+            }
+        }
+    }
+
+    fn action_cancel_delete(&mut self) {
+        self.delete_state.close();
+        self.active_panel = Panel::FilePanel;
     }
 
     // Acciones: FileClipboard
