@@ -72,6 +72,12 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
         }
     }
 
+    let show_status = if app.explorer.show_hidden {
+        "═╣ 󰈈 ╠═"
+    } else {
+        "═╣ 󰈉 ╠═"
+    };
+
     let focus_modifier: Modifier = if app.active_panel == Panel::FilePanel {
         Modifier::BOLD
     } else {
@@ -79,7 +85,7 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
     };
 
     let file_panel_block = Block::new()
-        .title_bottom(selection_indicator)
+        .title_bottom(format!("{}──{}", show_status, selection_indicator))
         .title_alignment(HorizontalAlignment::Right)
         .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         .border_type(BorderType::Rounded)
