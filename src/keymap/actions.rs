@@ -23,7 +23,9 @@ pub enum Action {
     OpenEntry,
     OpenEditor,
     GoToParentDir,
-    ShowHiddenFiles,
+    ToggleShowFiles,
+    ToggleSort,
+    ToggleInvertSort,
 
     /// Panel de creación de archivos/directorios.
     OpenCreatePanel,

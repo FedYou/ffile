@@ -12,7 +12,7 @@ use notify::{RecommendedWatcher, Watcher};
 
 use crate::config::get_config;
 use crate::file_system::directories::{
-    EntriesOptions, Entry, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd,
+    EntriesOptions, Entry, Sort, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd,
     resolve_existing_dir,
 };
 use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
@@ -200,6 +200,8 @@ pub struct ExplorerState {
     /// Metadata serializada del elemento seleccionado, lista para mostrar.
     pub metadata: Option<Vec<(String, String)>>,
     pub show_hidden: bool,
+    pub sort: Sort,
+    pub invert_sort: bool,
 }
 
 impl Default for ExplorerState {
@@ -239,6 +241,8 @@ impl Default for ExplorerState {
             entries,
             metadata,
             show_hidden: config.show_hidden_files.clone(),
+            sort: config.sort.clone().clone(),
+            invert_sort: config.invert_sort,
         }
     }
 }
@@ -384,7 +388,9 @@ impl App {
             Action::OpenEntry => self.action_open_selected_entry(),
             Action::OpenEditor => self.action_open_selected_in_editor(),
             Action::GoToParentDir => self.action_go_to_parent_dir(),
-            Action::ShowHiddenFiles => self.action_change_view_hidden_files(),
+            Action::ToggleShowFiles => self.action_toggle_show_files(),
+            Action::ToggleSort => self.action_toggle_sort(),
+            Action::ToggleInvertSort => self.action_toggle_invert_invert(),
 
             Action::FocusFilePanel => self.action_focus_file_panel(),
             Action::FocusSideBar => self.action_focus_sidebar_panel(),
@@ -444,11 +450,10 @@ impl App {
     /// Retorna las opciones de lectura de directorio (orden, ocultos, etc.) a
     /// partir de la config global y el pwd actual.
     fn get_entries_option(&self) -> EntriesOptions {
-        let config = get_config().lock().unwrap();
         EntriesOptions {
             path: self.explorer.pwd.clone(),
-            sort: config.sort.clone(),
-            invert: config.invert_sort.clone(),
+            sort: self.explorer.sort.clone(),
+            invert: self.explorer.invert_sort,
             show_hidden: self.explorer.show_hidden,
             filter: None,
         }
@@ -634,8 +639,23 @@ impl App {
         }
     }
 
-    fn action_change_view_hidden_files(&mut self) {
+    fn action_toggle_show_files(&mut self) {
         self.explorer.show_hidden = !self.explorer.show_hidden;
+        self.update();
+    }
+
+    fn action_toggle_sort(&mut self) {
+        self.explorer.sort = match self.explorer.sort {
+            Sort::Date => Sort::Size,
+            Sort::Size => Sort::Name,
+            Sort::Name => Sort::Date,
+        };
+
+        self.update();
+    }
+
+    fn action_toggle_invert_invert(&mut self) {
+        self.explorer.invert_sort = !self.explorer.invert_sort;
         self.update();
     }
 

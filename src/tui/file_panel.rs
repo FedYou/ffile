@@ -7,6 +7,7 @@ use ratatui::{
 
 use crate::{
     app::{App, Panel},
+    file_system::directories::Sort,
     tui::utils::{get_file_icon, get_file_icon_color, truncate_with_leading_ellipsis},
 };
 
@@ -78,6 +79,18 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
         "═╣ 󰈉 ╠═"
     };
 
+    let status_invert_sort = if app.explorer.invert_sort {
+        ""
+    } else {
+        ""
+    };
+
+    let status_sort = match app.explorer.sort {
+        Sort::Date => "Date",
+        Sort::Size => "Size",
+        Sort::Name => "Name",
+    };
+
     let focus_modifier: Modifier = if app.active_panel == Panel::FilePanel {
         Modifier::BOLD
     } else {
@@ -85,7 +98,10 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
     };
 
     let file_panel_block = Block::new()
-        .title_bottom(format!("{}──{}", show_status, selection_indicator))
+        .title_bottom(format!(
+            "═╣ {} {} ╠═{}{}",
+            status_invert_sort, status_sort, show_status, selection_indicator
+        ))
         .title_alignment(HorizontalAlignment::Right)
         .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         .border_type(BorderType::Rounded)
