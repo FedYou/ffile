@@ -55,7 +55,7 @@ pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
     let metadata_area = footer_layout[0];
     let clipboard_area = footer_layout[1];
 
-    if app.active_panel == Panel::Process {
+    if app.active_panel == Panel::Process || app.active_panel == Panel::ProcessInfo {
         process::render_process_panel(frame, frame.area(), app);
         return;
     }

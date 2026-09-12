@@ -29,6 +29,8 @@ struct ShortcutsToml {
     file_clipboard: HashMap<String, String>,
     #[serde(default)]
     process: HashMap<String, String>,
+    #[serde(default)]
+    process_info: HashMap<String, String>,
 }
 
 /// Representación normalizada de una combinación de teclas.
@@ -67,6 +69,7 @@ struct Shortcuts {
     delete: Vec<Shortcut>,
     file_clipboard: Vec<Shortcut>,
     process: Vec<Shortcut>,
+    process_info: Vec<Shortcut>,
 }
 
 // Parseo de teclas
@@ -265,11 +268,22 @@ fn parse_action_file_clipboard(s: &str) -> Action {
     }
 }
 
-/// Acciones válidas cuando el panel activo es `FileClipboard`.
+/// Acciones válidas cuando el panel activo es `Process`.
 fn parse_action_process(s: &str) -> Action {
     match s {
+        "open_process_info" => Action::OpenProcessInfoPanel,
         "exit_process" => Action::ExitProcessPanel,
         "cancel_process" => Action::CancelProcess,
+        "move_up" => Action::MoveUp,
+        "move_down" => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
+/// Acciones válidas cuando el panel activo es `ProcessInfo`.
+fn parse_action_process_info(s: &str) -> Action {
+    match s {
+        "exit_process_info" => Action::ExitProcessInfoPanel,
         "move_up" => Action::MoveUp,
         "move_down" => Action::MoveDown,
         _ => Action::None,
@@ -307,6 +321,7 @@ fn parse_shortcuts(str: &str) -> Shortcuts {
         create: build(&toml_parsed.create, parse_action_create),
         file_clipboard: build(&toml_parsed.file_clipboard, parse_action_file_clipboard),
         process: build(&toml_parsed.process, parse_action_process),
+        process_info: build(&toml_parsed.process_info, parse_action_process_info),
         delete: build(&toml_parsed.delete, parse_action_delete),
     }
 }
@@ -364,6 +379,11 @@ pub fn get_action(ev: CrosstermKeyEvent, active_panel: &Panel) -> Action {
         }
         Panel::Process => {
             if let Some(a) = get_active_action(shortcuts.process, &ev) {
+                return a;
+            }
+        }
+        Panel::ProcessInfo => {
+            if let Some(a) = get_active_action(shortcuts.process_info, &ev) {
                 return a;
             }
         }

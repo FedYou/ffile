@@ -61,9 +61,17 @@ c = "clear_clipboard"
 # -------------------------
 
 [process]
+Tab = "open_process_info"
+Enter = "open_process_info"
+Right = "open_process_info"
 Esc = "exit_process"
 Ctrl-c = "cancel_process"
 c = "cancel_process"
+
+[process_info]
+Esc = "exit_process_info"
+Left = "exit_process_info"
+Tab = "exit_process_info"
 
 [delete]
 Esc = "cancel_delete"

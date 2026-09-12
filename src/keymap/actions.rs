@@ -53,6 +53,8 @@ pub enum Action {
     OpenProcessPanel,
     ExitProcessPanel,
     CancelProcess,
+    OpenProcessInfoPanel,
+    ExitProcessInfoPanel,
     AddCopyProcess,
 
     /// Acción vacía: no se hace nada.

@@ -45,6 +45,7 @@ pub struct Process {
     /// Flag cooperativo de cancelación: el worker lo revisa entre
     /// operaciones y detiene la copia.
     pub cancel_flag: Arc<AtomicBool>,
+    pub errors: Option<Vec<String>>,
 }
 
 pub enum ProcessEvent {
@@ -58,13 +59,14 @@ pub enum ProcessEvent {
         message: Option<String>,
         entries_total: Option<usize>,
         entries_done: Option<usize>,
+        errors: Option<Vec<String>>,
     },
     Finished {
         id: ProcessId,
     },
     Failed {
         id: ProcessId,
-        error: String,
+        errors: Option<Vec<String>>,
     },
 }
 
@@ -100,6 +102,7 @@ impl ProcessManager {
                 message,
                 entries_total,
                 entries_done,
+                errors,
             } => {
                 if let Some(process) = self.processes.get_mut(&id) {
                     process.progress = progress;
@@ -111,10 +114,13 @@ impl ProcessManager {
                     if process.entries_total.is_none() {
                         process.entries_total = entries_total
                     }
-                    process.entries_done = entries_done
+                    process.entries_done = entries_done;
+                    if errors.is_some() {
+                        process.errors = errors;
+                    }
                 }
             }
-            ProcessEvent::Failed { id, error } => {
+            ProcessEvent::Failed { id, errors } => {
                 if let Some(process) = self.processes.get_mut(&id)
                     && process.status != ProcessStatus::Cancelled
                 {
@@ -124,8 +130,9 @@ impl ProcessManager {
                     process.bytes_total = None;
                     process.speed = None;
                     process.eta = None;
-                    process.message = Some(error);
-                    process.duration = Some(process.started_at.elapsed())
+                    process.message = None;
+                    process.duration = Some(process.started_at.elapsed());
+                    process.errors = errors
                 }
 
                 self.task.remove(&id);
@@ -180,6 +187,7 @@ impl ProcessManager {
             started_at: std::time::Instant::now(),
             duration: None,
             cancel_flag: cancel_flag.clone(),
+            errors: None,
         };
 
         let tx = self.tx.clone();
@@ -187,10 +195,7 @@ impl ProcessManager {
         let task = tokio::spawn(async move {
             let event = match copy(src, destination, tx.clone(), &cancel_flag, id).await {
                 Ok(()) => ProcessEvent::Finished { id },
-                Err(err) => ProcessEvent::Failed {
-                    id,
-                    error: err.to_string(),
-                },
+                Err(errs) => ProcessEvent::Failed { id, errors: errs },
             };
             let _ = tx.send(event).await;
         });

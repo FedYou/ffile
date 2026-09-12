@@ -39,6 +39,7 @@ pub enum Panel {
     FileClipboard,
     /// Panel de los procesos de archivos
     Process,
+    ProcessInfo,
 }
 
 /// Estado del panel para crear de archivos/directorios.
@@ -420,6 +421,8 @@ impl App {
             Action::OpenProcessPanel => self.action_open_process_panel(),
             Action::ExitProcessPanel => self.action_exit_process_panel(),
             Action::CancelProcess => self.action_cancel_process(),
+            Action::ExitProcessInfoPanel => self.action_exit_process_info_panel(),
+            Action::OpenProcessInfoPanel => self.action_open_process_info_panel(),
             Action::AddCopyProcess => self.action_add_copy_process(),
             _ => {}
         }
@@ -559,8 +562,12 @@ impl App {
     /// Si el panel activo es el FilePanel actualiza la metadata seleccionada.
     fn action_move_up(&mut self) {
         self.panels[self.active_panel].prev();
-        if self.active_panel == Panel::FilePanel {
-            self.update_metadata_current();
+        match self.active_panel {
+            Panel::FilePanel => self.update_metadata_current(),
+            Panel::Process => {
+                self.panels[Panel::ProcessInfo].selected = 0;
+            }
+            _ => {}
         }
     }
 
@@ -568,8 +575,12 @@ impl App {
     /// Si el panel activo es el FilePanel actualiza la metadata seleccionada.
     fn action_move_down(&mut self) {
         self.panels[self.active_panel].next();
-        if self.active_panel == Panel::FilePanel {
-            self.update_metadata_current();
+        match self.active_panel {
+            Panel::FilePanel => self.update_metadata_current(),
+            Panel::Process => {
+                self.panels[Panel::ProcessInfo].selected = 0;
+            }
+            _ => {}
         }
     }
 
@@ -854,12 +865,14 @@ impl App {
 
         if self.processes.len() > 0 {
             self.panels[Panel::Process].setup(self.processes.len(), None, None);
+            self.panels[Panel::ProcessInfo].valid = true;
         }
     }
 
     fn action_exit_process_panel(&mut self) {
         self.active_panel = Panel::FilePanel;
         self.panels[Panel::Process].valid = false;
+        self.panels[Panel::ProcessInfo].valid = false;
     }
 
     fn action_cancel_process(&mut self) {
@@ -870,6 +883,15 @@ impl App {
             let id = process.id;
             self.processes.cancel(&id);
         }
+    }
+
+    fn action_exit_process_info_panel(&mut self) {
+        self.active_panel = Panel::Process;
+        self.panels[Panel::ProcessInfo].selected = 0;
+    }
+
+    fn action_open_process_info_panel(&mut self) {
+        self.active_panel = Panel::ProcessInfo;
     }
 
     fn action_add_copy_process(&mut self) {
