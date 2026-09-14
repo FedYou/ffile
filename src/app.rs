@@ -770,6 +770,7 @@ impl App {
             } else {
                 self.active_panel = Panel::FilePanel;
                 self.delete_state.close();
+                self.update();
             }
         }
     }
