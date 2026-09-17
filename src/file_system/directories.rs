@@ -42,8 +42,8 @@ pub struct Entry {
 
 /// Lee el directorio indicado en `options` y devuelve sus entradas
 /// ordenadas y filtradas (según orden, invertido, ocultos y filtro).
-pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::Error> {
-    let mut entries: Vec<Entry> = fs::read_dir(options.path)?
+pub fn get_dir_entries(path: PathBuf) -> Result<Vec<Entry>, std::io::Error> {
+    let entries: Vec<Entry> = fs::read_dir(path)?
         .filter_map(|e| e.ok())
         .map(|e| {
             let file_type = e.file_type().unwrap();
@@ -56,37 +56,6 @@ pub fn get_dir_entries(options: EntriesOptions) -> Result<Vec<Entry>, std::io::E
             };
         })
         .collect();
-
-    match options.sort {
-        Sort::Name => {
-            entries.sort_by_key(|e| e.metadata.name.clone());
-        }
-        Sort::Size => {
-            entries.sort_by_key(|e| e.metadata.size.clone());
-        }
-        Sort::Date => {
-            entries.sort_by_key(|e| e.metadata.date_modified.clone());
-        }
-    }
-    if options.invert {
-        entries.reverse();
-    }
-
-    // → Al final, los directorios van siempre antes que los archivos.
-    entries.sort_by_key(|e| {
-        if e.is_file {
-            return 1;
-        }
-        0
-    });
-
-    if !options.show_hidden {
-        entries.retain(|e| !e.metadata.name.starts_with("."));
-    }
-
-    if let Some(filter_str) = &options.filter {
-        entries.retain(|e| e.metadata.name.contains(filter_str));
-    }
 
     Ok(entries)
 }

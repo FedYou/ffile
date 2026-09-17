@@ -53,7 +53,7 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
 
     let file_header_area = panel_layout[0];
 
-    let entry_count = app.explorer.entries.len();
+    let entry_count = app.explorer.visible_entries.len();
     let mut list_state = ListState::default();
 
     let has_valid_selection = app.panels[Panel::FilePanel].valid;
@@ -73,19 +73,19 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
         }
     }
 
-    let show_status = if app.explorer.show_hidden {
+    let show_status = if app.explorer.options.show_hidden {
         "═╣ 󰈈 ╠═"
     } else {
         "═╣ 󰈉 ╠═"
     };
 
-    let status_invert_sort = if app.explorer.invert_sort {
+    let status_invert_sort = if app.explorer.options.invert_sort {
         ""
     } else {
         ""
     };
 
-    let status_sort = match app.explorer.sort {
+    let status_sort = match app.explorer.options.sort {
         Sort::Date => "Date",
         Sort::Size => "Size",
         Sort::Name => "Name",
@@ -113,7 +113,7 @@ pub fn render_file_panel(frame: &mut ratatui::Frame, area: Rect, app: &mut App) 
 
     let entry_items: Vec<ListItem> = app
         .explorer
-        .entries
+        .visible_entries
         .iter()
         .map(|entry| {
             let entry_icon_is_selected = if app.file_clipboard.exist(&entry.path) {

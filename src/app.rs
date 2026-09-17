@@ -12,8 +12,7 @@ use notify::{RecommendedWatcher, Watcher};
 
 use crate::config::get_config;
 use crate::file_system::directories::{
-    EntriesOptions, Entry, Sort, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd,
-    resolve_existing_dir,
+    Entry, Sort, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd, resolve_existing_dir,
 };
 use crate::global::{self, MIN_HEIGHT_APP, MIN_WIDTH_APP};
 use crate::keymap::Action;
@@ -189,6 +188,13 @@ impl Default for PendingExternalActions {
     }
 }
 
+pub struct ExplorerOptions {
+    pub show_hidden: bool,
+    pub sort: Sort,
+    pub invert_sort: bool,
+    pub search: Option<String>,
+}
+
 /// Estado del explorador: directorio actual, entradas del directorio,
 /// bookmarks y la metadata del elemento seleccionado.
 pub struct ExplorerState {
@@ -196,13 +202,13 @@ pub struct ExplorerState {
     pub pwd: PathBuf,
     /// Bookmarks del sidebar
     pub bookmarks: Vec<(String, Option<PathBuf>)>,
-    /// Entidades (archivos/directorios) del directorio actual.
+    /// (archivos/directorios) del directorio actual.
     pub entries: Vec<Entry>,
+    ///
+    pub visible_entries: Vec<Entry>,
     /// Metadata serializada del elemento seleccionado, lista para mostrar.
     pub metadata: Option<Vec<(String, String)>>,
-    pub show_hidden: bool,
-    pub sort: Sort,
-    pub invert_sort: bool,
+    pub options: ExplorerOptions,
 }
 
 impl Default for ExplorerState {
@@ -213,38 +219,24 @@ impl Default for ExplorerState {
         let config = get_config().lock().unwrap();
         let pwd: PathBuf = get_pwd();
 
-        let dir_entries_options = EntriesOptions {
-            path: pwd.clone(),
-            sort: config.sort.clone(),
-            invert: config.invert_sort.clone(),
-            show_hidden: config.show_hidden_files.clone(),
-            filter: None,
-        };
-
-        let entries: Vec<Entry> = get_dir_entries(dir_entries_options)
-            .expect(format!("Cannot get contents of {:?} directory", pwd.clone()).as_str());
-
-        let file_panel_index: Option<usize> = if !entries.is_empty() { Some(0) } else { None };
-
-        let metadata = if let Some(index) = file_panel_index {
-            if entries.is_empty() {
-                None
-            } else {
-                Some(get_serialize_metadata(&entries.get(index).unwrap()))
-            }
-        } else {
-            None
-        };
-
-        Self {
+        let mut state = Self {
             pwd,
             bookmarks: get_bookmarks(),
-            entries,
-            metadata,
-            show_hidden: config.show_hidden_files.clone(),
-            sort: config.sort.clone().clone(),
-            invert_sort: config.invert_sort,
-        }
+            entries: Vec::new(),
+            visible_entries: Vec::new(),
+            metadata: None,
+            options: ExplorerOptions {
+                show_hidden: config.show_hidden_files.clone(),
+                sort: config.sort.clone(),
+                invert_sort: config.invert_sort,
+                search: None,
+            },
+        };
+        state.update_entries();
+        state.apply_filters_entries();
+        state.update_metadata(0);
+
+        state
     }
 }
 
@@ -254,14 +246,88 @@ impl ExplorerState {
         self.pwd.clone()
     }
 
-    /// Cambia el directorio actual.
-    fn set_pwd(&mut self, path: PathBuf) {
-        self.pwd = path
+    /// Resuelve la ruta actual y si no existe retrocede hasta encontrar una válida
+    fn update_pwd(&mut self, path: Option<PathBuf>) {
+        self.pwd = resolve_existing_dir(if let Some(_path) = path {
+            _path
+        } else {
+            self.get_pwd()
+        });
+
+        // Actualiza la ruta del proceso de trabajo actual de la app
+        let _ = std::env::set_current_dir(self.get_pwd());
     }
 
     /// Reemplaza la lista de entidades del directorio actual.
-    fn set_entries(&mut self, entries: Vec<Entry>) {
-        self.entries = entries
+    fn update_entries(&mut self) {
+        self.entries = get_dir_entries(self.get_pwd())
+            .expect(format!("Cannot get contents of {:?} directory", self.get_pwd()).as_str());
+    }
+
+    fn update_metadata(&mut self, index: usize) {
+        self.metadata = if !self.visible_entries.is_empty()
+            && let Some(entry) = &self.visible_entries.get(index)
+        {
+            Some(get_serialize_metadata(entry))
+        } else {
+            None
+        };
+    }
+
+    /// Crea un archivo o directorio basado en `full_path`. Si `input_value` termina
+    /// en "/", es directorio sino un archivo
+    fn create_entry(&self, full_path: PathBuf, input_value: &String) -> Result<(), Error> {
+        if input_value.ends_with("/") {
+            create_dir_all(full_path)?;
+            return Ok(());
+        }
+
+        let parent = get_parent_dir(full_path.clone());
+        create_dir_all(parent)?;
+        File::create(full_path)?;
+
+        Ok(())
+    }
+
+    fn delete_entry(&self, path: PathBuf) -> Result<(), Error> {
+        file_system::delete::delete(path)
+    }
+
+    fn apply_filters_entries(&mut self) {
+        let mut entries: Vec<Entry> = self.entries.clone();
+
+        match self.options.sort {
+            Sort::Name => {
+                entries.sort_by_key(|e| e.metadata.name.clone());
+            }
+            Sort::Size => {
+                entries.sort_by_key(|e| e.metadata.size.clone());
+            }
+            Sort::Date => {
+                entries.sort_by_key(|e| e.metadata.date_modified.clone());
+            }
+        }
+        if self.options.invert_sort {
+            entries.reverse();
+        }
+
+        // → Al final, los directorios van siempre antes que los archivos.
+        entries.sort_by_key(|e| {
+            if e.is_file {
+                return 1;
+            }
+            0
+        });
+
+        if !self.options.show_hidden {
+            entries.retain(|e| !e.metadata.name.starts_with("."));
+        }
+
+        if let Some(filter_str) = &self.options.search {
+            entries.retain(|e| e.metadata.name.contains(filter_str));
+        }
+
+        self.visible_entries = entries
     }
 }
 
@@ -338,33 +404,20 @@ impl App {
     /// Revalida el pwd (por si fue borrado/movido), recarga las entradas,
     /// ajusta el índice seleccionado y recalcula la metadata mostrada.
     pub fn update(&mut self) {
-        // Resuelve la ruta actual y si no existe retrocede hasta encontrar una válida
-        let pwd = self.explorer.get_pwd();
-        self.explorer.set_pwd(resolve_existing_dir(pwd));
+        self.explorer.update_pwd(None);
+        self.explorer.update_entries();
+        self.explorer.apply_filters_entries();
 
-        // Actualiza la ruta del proceso de trabajo actual de la app
-        let _ = std::env::set_current_dir(self.explorer.get_pwd());
-
-        let options = self.get_entries_option();
-
-        // Mensaje de error temporal si no se puede obtener el contenido del directorio
-        let expect_msg = format!(
-            "Cannot get contents of {} directory",
-            self.explorer.get_pwd().to_str().unwrap()
-        );
-
-        self.explorer
-            .set_entries(get_dir_entries(options).expect(&expect_msg));
-
-        if !self.explorer.entries.is_empty() {
-            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), None, None);
+        if !self.explorer.visible_entries.is_empty() {
+            self.panels[Panel::FilePanel].setup(self.explorer.visible_entries.len(), None, None);
         }
 
         // Selecciona el último elemento si el índice anterior es mayor a la
         // cantidad de entries actuales (evita quedar apuntando "afuera" de la lista)
-        self.panels[Panel::FilePanel].clamp_selected(self.explorer.entries.len());
+        self.panels[Panel::FilePanel].clamp_selected(self.explorer.visible_entries.len());
 
-        self.update_metadata_current();
+        self.explorer
+            .update_metadata(self.panels[Panel::FilePanel].selected);
     }
 
     // Entrada de acciones (keymap -> Action)
@@ -446,25 +499,8 @@ impl App {
     /// Retorna el Entry actualmente seleccionado en el FilePanel, si existe.
     fn get_current_entry(&self) -> Option<&Entry> {
         self.explorer
-            .entries
+            .visible_entries
             .get(self.panels[Panel::FilePanel].selected)
-    }
-
-    /// Retorna las opciones de lectura de directorio (orden, ocultos, etc.) a
-    /// partir de la config global y el pwd actual.
-    fn get_entries_option(&self) -> EntriesOptions {
-        EntriesOptions {
-            path: self.explorer.pwd.clone(),
-            sort: self.explorer.sort.clone(),
-            invert: self.explorer.invert_sort,
-            show_hidden: self.explorer.show_hidden,
-            filter: None,
-        }
-    }
-
-    /// Retorna la Metadata serializada del entry actual seleccionado en el FilePanel.
-    fn get_current_metadata(&self) -> Option<Vec<(String, String)>> {
-        self.get_current_entry().map(get_serialize_metadata)
     }
 
     /// Retorna (clave, valor) de metadata actual seleccionada dentro del
@@ -473,6 +509,7 @@ impl App {
         if !self.panels[Panel::Metadata].valid {
             return None;
         }
+
         self.explorer
             .metadata
             .as_ref()?
@@ -496,36 +533,20 @@ impl App {
     /// Cambia el pwd a `path`: reubica el watcher, recarga entries y metadata.
     /// Usada por navegación (abrir carpeta, ir al padre, abrir bookmark).
     fn open_directory(&mut self, path: PathBuf) {
-        let valid_dir = resolve_existing_dir(path);
+        self.explorer.update_pwd(Some(path));
 
         let _ = self.watcher.unwatch(&self.explorer.pwd);
         let _ = self
             .watcher
-            .watch(&valid_dir, notify::RecursiveMode::NonRecursive);
+            .watch(&self.explorer.pwd, notify::RecursiveMode::NonRecursive);
 
-        self.explorer.pwd = valid_dir;
+        self.explorer.update_entries();
 
-        // Actualiza la ruta del proceso de trabajo actual de la app
-        let _ = std::env::set_current_dir(self.explorer.get_pwd());
-
-        let options = self.get_entries_option();
-
-        let expect_msg = format!(
-            "Cannot get contents of {} directory",
-            self.explorer.pwd.to_str().unwrap()
-        );
-
-        self.explorer.entries = get_dir_entries(options).expect(&expect_msg);
-
-        if !self.explorer.entries.is_empty() {
-            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), Some(0), None);
+        if !self.explorer.visible_entries.is_empty() {
+            self.panels[Panel::FilePanel].setup(self.explorer.visible_entries.len(), Some(0), None);
         }
-        self.update_metadata_current();
-    }
-
-    /// Recalcula `explorer.metadata` en base a la entry actualmente seleccionada.
-    fn update_metadata_current(&mut self) {
-        self.explorer.metadata = self.get_current_metadata()
+        self.explorer
+            .update_metadata(self.panels[Panel::FilePanel].selected);
     }
 
     /// Copia `value` al portapapeles del sistema, si hay uno disponible.
@@ -535,27 +556,6 @@ impl App {
         }
     }
 
-    /// Crea un archivo o directorio basado en `full_path`. Si `input_value` termina
-    /// en "/", se interpreta como directorio (crea toda la ruta con
-    /// `create_dir_all`); en caso contrario crea un archivo, asegurando antes
-    /// que exista el directorio padre.
-    fn create_entry(&self, full_path: PathBuf, input_value: &String) -> Result<(), Error> {
-        if input_value.ends_with("/") {
-            create_dir_all(full_path)?;
-            return Ok(());
-        }
-
-        let parent = get_parent_dir(full_path.clone());
-        create_dir_all(parent)?;
-        File::create(full_path)?;
-
-        Ok(())
-    }
-
-    fn delete_entry(&self, path: PathBuf) -> Result<(), Error> {
-        file_system::delete::delete(path)
-    }
-
     // Acciones: movimiento
 
     /// Mueve la selección hacia arriba dentro del panel activo.
@@ -563,7 +563,10 @@ impl App {
     fn action_move_up(&mut self) {
         self.panels[self.active_panel].prev();
         match self.active_panel {
-            Panel::FilePanel => self.update_metadata_current(),
+            Panel::FilePanel => {
+                self.explorer
+                    .update_metadata(self.panels[Panel::FilePanel].selected);
+            }
             Panel::Process => {
                 self.panels[Panel::ProcessInfo].selected = 0;
             }
@@ -576,7 +579,10 @@ impl App {
     fn action_move_down(&mut self) {
         self.panels[self.active_panel].next();
         match self.active_panel {
-            Panel::FilePanel => self.update_metadata_current(),
+            Panel::FilePanel => {
+                self.explorer
+                    .update_metadata(self.panels[Panel::FilePanel].selected);
+            }
             Panel::Process => {
                 self.panels[Panel::ProcessInfo].selected = 0;
             }
@@ -589,10 +595,10 @@ impl App {
     fn action_focus_file_panel(&mut self) {
         self.active_panel = Panel::FilePanel;
 
-        if self.explorer.entries.is_empty() {
+        if self.explorer.visible_entries.is_empty() {
             self.panels[Panel::FilePanel].reset();
         } else {
-            self.panels[Panel::FilePanel].setup(self.explorer.entries.len(), None, None);
+            self.panels[Panel::FilePanel].setup(self.explorer.visible_entries.len(), None, None);
         }
     }
 
@@ -651,23 +657,29 @@ impl App {
     }
 
     fn action_toggle_show_files(&mut self) {
-        self.explorer.show_hidden = !self.explorer.show_hidden;
-        self.update();
+        self.explorer.options.show_hidden = !self.explorer.options.show_hidden;
+        self.explorer.apply_filters_entries();
+        self.explorer
+            .update_metadata(self.panels[Panel::FilePanel].selected);
     }
 
     fn action_toggle_sort(&mut self) {
-        self.explorer.sort = match self.explorer.sort {
+        self.explorer.options.sort = match self.explorer.options.sort {
             Sort::Date => Sort::Size,
             Sort::Size => Sort::Name,
             Sort::Name => Sort::Date,
         };
 
-        self.update();
+        self.explorer.apply_filters_entries();
+        self.explorer
+            .update_metadata(self.panels[Panel::FilePanel].selected);
     }
 
     fn action_toggle_invert_invert(&mut self) {
-        self.explorer.invert_sort = !self.explorer.invert_sort;
-        self.update();
+        self.explorer.options.invert_sort = !self.explorer.options.invert_sort;
+        self.explorer.apply_filters_entries();
+        self.explorer
+            .update_metadata(self.panels[Panel::FilePanel].selected);
     }
 
     // Acciones: panel Metadata
@@ -731,7 +743,7 @@ impl App {
 
         let full_path = self.explorer.pwd.join(input_value.clone());
 
-        if let Err(err) = self.create_entry(full_path, &input_value) {
+        if let Err(err) = self.explorer.create_entry(full_path, &input_value) {
             self.create_state.fail(err);
         } else {
             self.active_panel = Panel::FilePanel;
@@ -751,7 +763,7 @@ impl App {
 
     // Acciones: panel Delete
     fn action_open_delete_panel(&mut self) {
-        if self.explorer.entries.is_empty() {
+        if self.explorer.visible_entries.is_empty() {
             return;
         }
 
@@ -765,7 +777,7 @@ impl App {
         }
 
         if let Some(entry) = self.get_current_entry() {
-            if let Err(err) = self.delete_entry(entry.path.clone()) {
+            if let Err(err) = self.explorer.delete_entry(entry.path.clone()) {
                 self.delete_state.fail(err);
             } else {
                 self.active_panel = Panel::FilePanel;
