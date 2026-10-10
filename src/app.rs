@@ -233,7 +233,6 @@ impl Default for ExplorerState {
             },
         };
         state.update_entries();
-        state.apply_filters_entries();
         state.update_metadata(0);
 
         state
@@ -262,6 +261,7 @@ impl ExplorerState {
     fn update_entries(&mut self) {
         self.entries = get_dir_entries(self.get_pwd())
             .expect(format!("Cannot get contents of {:?} directory", self.get_pwd()).as_str());
+        self.apply_filters_entries();
     }
 
     fn update_metadata(&mut self, index: usize) {
@@ -406,7 +406,6 @@ impl App {
     pub fn update(&mut self) {
         self.explorer.update_pwd(None);
         self.explorer.update_entries();
-        self.explorer.apply_filters_entries();
 
         if !self.explorer.visible_entries.is_empty() {
             self.panels[Panel::FilePanel].setup(self.explorer.visible_entries.len(), None, None);
@@ -533,9 +532,10 @@ impl App {
     /// Cambia el pwd a `path`: reubica el watcher, recarga entries y metadata.
     /// Usada por navegación (abrir carpeta, ir al padre, abrir bookmark).
     fn open_directory(&mut self, path: PathBuf) {
+        let _ = self.watcher.unwatch(&self.explorer.pwd);
+
         self.explorer.update_pwd(Some(path));
 
-        let _ = self.watcher.unwatch(&self.explorer.pwd);
         let _ = self
             .watcher
             .watch(&self.explorer.pwd, notify::RecursiveMode::NonRecursive);
