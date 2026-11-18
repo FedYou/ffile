@@ -1,0 +1,15 @@
+[package]
+name = "term"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "ffile"
+path = "src/main.rs"
+
+[dependencies]
+ffile-core = { path = "../core" }
+ffile-tui = { path = "../tui" }
+crossterm = "0.29.0"
+tokio.workspace = true
+ratatui.workspace = true

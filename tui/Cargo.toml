@@ -1,0 +1,9 @@
+[package]
+name = "ffile-tui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ffile-core = { path = "../core" }
+ratatui.workspace = true
+ratatui-braille-bar = "0.3.0"
