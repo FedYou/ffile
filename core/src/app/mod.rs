@@ -129,9 +129,7 @@ impl<'a> App<'a> {
             Action::New => self.action_focus_new(),
             Action::Delete => self.action_focus_delete(),
 
-            // Action::MoveInputCursorLeft => self.input.move_cursor_left(),
-            // Action::MoveInputC/ Action::MoveInputCursorRight => self.input.move_cursor_right(),
-            Action::RemoveInputChar => self.input.remove_char(),
+            Action::RemoveInputChar => self.remove_input_char(),
 
             Action::AddClipboard => self.action_add_clipboard(),
             Action::RemoveClipboard => self.action_remove_clipboard(),
@@ -153,9 +151,30 @@ impl<'a> App<'a> {
             Panel::New => {
                 if let Some(ch) = key.as_char() {
                     self.input.set_char(ch);
+                    self.update_input_create_state();
                 }
             }
             _ => {}
+        }
+    }
+
+    fn remove_input_char(&mut self) {
+        self.input.remove_char();
+
+        match self.active_panel {
+            Panel::New => {
+                self.update_input_create_state();
+            }
+            _ => {}
+        }
+    }
+
+    fn update_input_create_state(&mut self) {
+        let path = self.explorer.pwd.join(self.input.to_string());
+        if fs::symlink_metadata(&path).is_ok() {
+            self.input.invalid = true;
+        } else {
+            self.input.invalid = false;
         }
     }
 
@@ -470,10 +489,7 @@ impl<'a> App<'a> {
         let is_dir = input_value.ends_with("/");
         let path = self.explorer.pwd.join(input_value.clone());
 
-        if fs::symlink_metadata(&path).is_ok() {
-            self.input.invalid = true;
-        } else {
-            self.input.invalid = false;
+        if fs::symlink_metadata(&path).is_err() {
             self.processes.spawn_create(path, is_dir);
 
             self.active_panel = Panel::Files;
