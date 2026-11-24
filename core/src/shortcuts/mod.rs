@@ -21,14 +21,12 @@ fn get_active_action(list: &HashMap<ShortcutKey, Action>, event: &KeyEvent) -> O
     return None;
 }
 
+fn is_plain_text_key(event: &KeyEvent) -> bool {
+    matches!(event.code, KeyCode::Char(_)) && !event.ctrl && !event.alt
+}
+
 pub fn get_action(event: &KeyEvent, active_panel: &Panel) -> Action {
     let shortcuts = &get_config().shortcuts;
-
-    if let Some(a) = get_active_action(&shortcuts.global, event) {
-        if ACTIONS_ENABLED.global.contains(&a) {
-            return a;
-        }
-    }
 
     match active_panel {
         Panel::Files => {
@@ -81,6 +79,16 @@ pub fn get_action(event: &KeyEvent, active_panel: &Panel) -> Action {
             }
         }
         _ => {}
+    }
+
+    if *active_panel == Panel::New && is_plain_text_key(event) {
+        return Action::None;
+    }
+
+    if let Some(a) = get_active_action(&shortcuts.global, event) {
+        if ACTIONS_ENABLED.global.contains(&a) {
+            return a;
+        }
     }
 
     return Action::None;
