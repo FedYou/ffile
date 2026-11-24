@@ -1,15 +1,8 @@
-use std::{
-    fs::{File, create_dir_all},
-    io::Error,
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use crate::{
     file_system::{
-        directories::{
-            Entry, Sort, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd,
-            resolve_existing_dir,
-        },
+        directories::{Entry, Sort, get_bookmarks, get_dir_entries, get_pwd, resolve_existing_dir},
         metadata::get_serialize_metadata,
     },
     get_config,
@@ -99,21 +92,6 @@ impl ExplorerState {
         } else {
             None
         };
-    }
-
-    /// Crea un archivo o directorio basado en `full_path`. Si `input_value` termina
-    /// en "/", es directorio sino un archivo
-    pub fn create_entry(&self, full_path: PathBuf, input_value: &String) -> Result<(), Error> {
-        if input_value.ends_with("/") {
-            create_dir_all(full_path)?;
-            return Ok(());
-        }
-
-        let parent = get_parent_dir(full_path.clone());
-        create_dir_all(parent)?;
-        File::create(full_path)?;
-
-        Ok(())
     }
 
     pub fn apply_filters_entries(&mut self) {
