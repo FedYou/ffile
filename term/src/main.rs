@@ -97,6 +97,9 @@ async fn main() -> Result<(), std::io::Error> {
     let editor_state_clone = editor_state.clone();
     let parked = reader_parked.clone();
 
+    // Dibuja la tui al iniciar la app
+    let _ = terminal.draw(|frame| ffile_tui::render(frame, &mut app));
+
     std::thread::spawn(move || {
         loop {
             if !editor_state_clone.is_close() {
@@ -174,7 +177,9 @@ async fn main() -> Result<(), std::io::Error> {
             Some(event) = app.processes.rx.recv() => {
                 app.processes.handle_event(event);
         }
-            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                continue;
+            }
 
         };
 
