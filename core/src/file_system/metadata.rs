@@ -30,7 +30,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn is_executable(self) -> io::Result<bool> {
+    pub fn is_executable(&self) -> io::Result<bool> {
         if !fs::metadata(&self.path)?.is_file() {
             return Ok(false);
         }

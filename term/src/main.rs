@@ -192,7 +192,7 @@ async fn main() -> Result<(), std::io::Error> {
         if editor_state.is_close()
             && let Some(entry) = app.pending_external_actions.open_with_app.take()
         {
-            let is_executable = entry.metadata.clone().is_executable().unwrap_or(true);
+            let is_executable = entry.metadata.is_executable().unwrap_or(true);
 
             if !is_executable {
                 let is_text = entry
