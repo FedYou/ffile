@@ -2,7 +2,7 @@ use super::{KeyCode, KeyEvent};
 use crate::actions::Action;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 // ---------- Macros ----------
 macro_rules! shortcuts {
@@ -22,6 +22,13 @@ macro_rules! shortcuts {
 }
 
 // ----------------------------
+
+const REGEX_PARSE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"^(?:Ctrl\-)?(?:Alt\-)?(?:Shift\-)?(?:Tab|Enter|Esc|Space|Backspace|Left|Right|Up|Down|Home|End|Insert|Delete|PageUp|PageDown|F(?:[1-9]|1[0-2])|[A-Za-z0-9]|[!@#$%^&*()_+\-=\[\]{};:'",.<>/?\\|`~])$"#,
+    )
+    .unwrap()
+});
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -186,12 +193,7 @@ fn exist_modifier(parts: &mut Vec<&str>, modifier: &str) -> bool {
 }
 
 fn parse_key_event(s: &str) -> Option<KeyEvent> {
-    let re = Regex::new(
-        r#"^(?:Ctrl\-)?(?:Alt\-)?(?:Shift\-)?(?:Tab|Enter|Esc|Space|Backspace|Left|Right|Up|Down|Home|End|Insert|Delete|PageUp|PageDown|F(?:[1-9]|1[0-2])|[A-Za-z0-9]|[!@#$%^&*()_+\-=\[\]{};:'",.<>/?\\|`~])$"#,
-    )
-    .unwrap();
-
-    if !re.is_match(s) {
+    if !REGEX_PARSE.is_match(s) {
         return None;
     }
 
