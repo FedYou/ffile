@@ -6,6 +6,7 @@ pub struct Input {
     pub position: usize,
     /// Caracteres del texto ingresado.
     pub content: Vec<char>,
+    pub invalid: bool,
 }
 
 impl Default for Input {
@@ -14,6 +15,7 @@ impl Default for Input {
         Input {
             position: 0,
             content: Vec::new(),
+            invalid: false,
         }
     }
 }
@@ -25,6 +27,7 @@ impl Input {
     pub fn clear(&mut self) {
         self.position = 0;
         self.content.clear();
+        self.invalid = false
     }
 
     /// Inserta `ch` en la posición actual del cursor y avanza el cursor.

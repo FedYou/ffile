@@ -1,337 +1,27 @@
-use std::fs::{File, create_dir_all};
-use std::io::Error;
-use std::path::PathBuf;
-use std::sync::MutexGuard;
-
-use crate::file_system::metadata::get_serialize_metadata;
+mod explorer;
+mod external;
+pub mod panels;
+use crate::actions::Action;
+use crate::app::explorer::ExplorerState;
+use crate::app::external::PendingExternalActions;
+use crate::file_system::directories::{Entry, Sort, get_parent_dir};
+use crate::global;
 use crate::index::SelectionIndex;
 use crate::input::Input;
 use crate::processes::ProcessesManager;
 use crate::shortcuts::KeyCode;
+use crate::watcher;
+
 use arboard::Clipboard;
+use enum_map::EnumMap;
 use notify::{RecommendedWatcher, Watcher};
-
-use crate::actions::Action;
-use crate::config::get_config;
-use crate::file_system::directories::{
-    Entry, Sort, get_bookmarks, get_dir_entries, get_parent_dir, get_pwd, resolve_existing_dir,
-};
-use crate::global;
-use crate::{file_system, watcher};
-use enum_map::{Enum, EnumMap};
-
-// Enums y Structs
-
-/// Lista de los Paneles de la app
-#[derive(PartialEq, Enum, Copy, Clone)]
-pub enum Panel {
-    /// Sidebar con los bookmarks (Home, Desktop, ...).
-    SideBar,
-    /// Lista de archivos y directorios del directorio actual.
-    Files,
-    /// Metadata del elemento seleccionado.
-    Metadata,
-    /// Popup para crear archivos/directorios.
-    New,
-    /// Popup para eliminar archivos/directorios.
-    Delete,
-    /// Clipboard de los archivos/directorios.
-    Clipboard,
-    /// Panel de los procesos de archivos
-    Processes,
-    ProcessInfo,
-}
-
-/// Estado del panel para crear de archivos/directorios.
-pub enum CreateState {
-    /// Popup cerrado.
-    Closed,
-    /// Popup abierto, con el input activo para escribir
-    Editing,
-    /// Ocurrió un error al crear; guarda el error para mostrarlo.
-    Error(Error),
-}
-
-impl Default for CreateState {
-    fn default() -> Self {
-        CreateState::Closed
-    }
-}
-
-impl CreateState {
-    /// Cambia el estado a `Error`
-    fn fail(&mut self, err: Error) {
-        *self = CreateState::Error(err);
-    }
-    /// Abre el popup en modo edición.
-    fn open(&mut self) {
-        *self = CreateState::Editing;
-    }
-    /// Cierra el popup.
-    fn close(&mut self) {
-        *self = CreateState::Closed;
-    }
-}
-
-pub enum DeleteState {
-    Closed,
-    Open,
-    Error(Error),
-}
-
-impl Default for DeleteState {
-    fn default() -> Self {
-        DeleteState::Closed
-    }
-}
-
-impl DeleteState {
-    /// Cambia el estado a `Error`
-    fn fail(&mut self, err: Error) {
-        *self = DeleteState::Error(err);
-    }
-    /// Abre el popup en modo edición.
-    fn open(&mut self) {
-        *self = DeleteState::Open;
-    }
-    /// Cierra el popup.
-    fn close(&mut self) {
-        *self = DeleteState::Closed;
-    }
-}
-
-pub struct FileClipboardItem {
-    pub path: PathBuf,
-    pub exist: bool,
-}
-
-pub struct FileClipboardState {
-    pub list: Vec<FileClipboardItem>,
-    pub in_progress: bool,
-}
-
-impl Default for FileClipboardState {
-    fn default() -> Self {
-        FileClipboardState {
-            list: vec![],
-            in_progress: false,
-        }
-    }
-}
-
-impl FileClipboardState {
-    pub fn add(&mut self, path: PathBuf) {
-        let exist = path.as_path().exists();
-
-        self.list.insert(0, FileClipboardItem { path, exist });
-    }
-
-    /// Actualiza el estado de si esa ruta de archivo/directorio existe
-    pub fn update_states(&mut self) {
-        self.list = self
-            .list
-            .iter()
-            .map(|i| FileClipboardItem {
-                path: i.path.clone(),
-                exist: i.path.as_path().exists(),
-            })
-            .collect()
-    }
-
-    pub fn remove(&mut self, index: usize) {
-        self.list.remove(index);
-        self.update_states();
-    }
-
-    pub fn remove_exist(&mut self, path: &PathBuf) -> bool {
-        if let Some(index) = self.list.iter().position(|item| &item.path == path) {
-            self.list.remove(index);
-            self.update_states();
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.list.clear();
-    }
-
-    pub fn get(&self) -> Vec<PathBuf> {
-        self.list.iter().map(|i| i.path.clone()).collect()
-    }
-
-    pub fn exist(&self, path: &PathBuf) -> bool {
-        self.list.iter().find(|i| &i.path == path).is_some()
-    }
-
-    pub fn len(&self) -> usize {
-        self.list.len()
-    }
-}
-
+use panels::{FileClipboardState, Panel};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::MutexGuard;
 /// Acciones que deben ejecutarse "afuera" del loop principal (abrir una app
 /// externa o un editor). Se guardan acá y el loop principal las consume y
 /// las limpia después de consumirlas.
-pub struct PendingExternalActions {
-    /// Archivo listo para abrirse con la app externa por defecto.
-    pub open_with_app: Option<Entry>,
-    /// Archivo listo para abrirse en el editor externo configurado.
-    pub open_with_editor: Option<PathBuf>,
-}
-
-impl Default for PendingExternalActions {
-    fn default() -> Self {
-        Self {
-            open_with_app: None,
-            open_with_editor: None,
-        }
-    }
-}
-
-pub struct ExplorerOptions {
-    pub show_hidden: bool,
-    pub sort: Sort,
-    pub invert_sort: bool,
-    pub search: Option<String>,
-}
-
-/// Estado del explorador: directorio actual, entradas del directorio,
-/// bookmarks y la metadata del elemento seleccionado.
-pub struct ExplorerState {
-    /// Directorio de trabajo actual que se está explorando.
-    pub pwd: PathBuf,
-    /// Bookmarks del sidebar
-    pub bookmarks: Vec<(String, Option<PathBuf>)>,
-    /// (archivos/directorios) del directorio actual.
-    pub entries: Vec<Entry>,
-    ///
-    pub visible_entries: Vec<Entry>,
-    /// Metadata serializada del elemento seleccionado, lista para mostrar.
-    pub metadata: Option<Vec<(String, String)>>,
-    pub options: ExplorerOptions,
-}
-
-impl Default for ExplorerState {
-    /// Inicializa el explorador leyendo el pwd actual, listando sus
-    /// entradas según la config (orden, orden invertido, ocultos) y
-    /// calculando la metadata de la primera entrada si existe alguna.
-    fn default() -> Self {
-        let config = get_config();
-        let pwd: PathBuf = get_pwd();
-
-        let mut state = Self {
-            pwd,
-            bookmarks: get_bookmarks(),
-            entries: Vec::new(),
-            visible_entries: Vec::new(),
-            metadata: None,
-            options: ExplorerOptions {
-                show_hidden: config.show_hidden_files.clone(),
-                sort: config.sort.clone(),
-                invert_sort: config.invert_sort,
-                search: None,
-            },
-        };
-        state.update_entries();
-        state.update_metadata(0);
-
-        state
-    }
-}
-
-impl ExplorerState {
-    /// Devuelve el directorio actual.
-    fn get_pwd(&self) -> PathBuf {
-        self.pwd.clone()
-    }
-
-    /// Resuelve la ruta actual y si no existe retrocede hasta encontrar una válida
-    fn update_pwd(&mut self, path: Option<PathBuf>) {
-        self.pwd = resolve_existing_dir(if let Some(_path) = path {
-            _path
-        } else {
-            self.get_pwd()
-        });
-
-        // Actualiza la ruta del proceso de trabajo actual de la app
-        let _ = std::env::set_current_dir(self.get_pwd());
-    }
-
-    /// Reemplaza la lista de entidades del directorio actual.
-    fn update_entries(&mut self) {
-        self.entries = get_dir_entries(self.get_pwd())
-            .expect(format!("Cannot get contents of {:?} directory", self.get_pwd()).as_str());
-        self.apply_filters_entries();
-    }
-
-    fn update_metadata(&mut self, index: usize) {
-        self.metadata = if !self.visible_entries.is_empty()
-            && let Some(entry) = &self.visible_entries.get(index)
-        {
-            Some(get_serialize_metadata(entry))
-        } else {
-            None
-        };
-    }
-
-    /// Crea un archivo o directorio basado en `full_path`. Si `input_value` termina
-    /// en "/", es directorio sino un archivo
-    fn create_entry(&self, full_path: PathBuf, input_value: &String) -> Result<(), Error> {
-        if input_value.ends_with("/") {
-            create_dir_all(full_path)?;
-            return Ok(());
-        }
-
-        let parent = get_parent_dir(full_path.clone());
-        create_dir_all(parent)?;
-        File::create(full_path)?;
-
-        Ok(())
-    }
-
-    fn delete_entry(&self, path: PathBuf) -> Result<(), Error> {
-        file_system::delete::delete(path)
-    }
-
-    fn apply_filters_entries(&mut self) {
-        let mut entries: Vec<Entry> = self.entries.clone();
-
-        match self.options.sort {
-            Sort::Name => {
-                entries.sort_by_key(|e| e.metadata.name.clone());
-            }
-            Sort::Size => {
-                entries.sort_by_key(|e| e.metadata.size.clone());
-            }
-            Sort::Date => {
-                entries.sort_by_key(|e| e.metadata.date_modified.clone());
-            }
-        }
-        if self.options.invert_sort {
-            entries.reverse();
-        }
-
-        // → Al final, los directorios van siempre antes que los archivos.
-        entries.sort_by_key(|e| {
-            if e.is_file {
-                return 1;
-            }
-            0
-        });
-
-        if !self.options.show_hidden {
-            entries.retain(|e| !e.metadata.name.starts_with("."));
-        }
-
-        if let Some(filter_str) = &self.options.search {
-            entries.retain(|e| e.metadata.name.contains(filter_str));
-        }
-
-        self.visible_entries = entries
-    }
-}
-
 // App
 
 pub struct App<'a> {
@@ -347,13 +37,12 @@ pub struct App<'a> {
     /// Watcher del filesystem: vigila el directorio actual para detectar cambios.
     watcher: MutexGuard<'a, RecommendedWatcher>,
     /// Portapapeles del sistema (si hay uno disponible).
-    clipboard: Option<Clipboard>,
-    pub file_clipboard: FileClipboardState,
+    clipboard_controller: Option<Clipboard>,
+    pub clipboard: FileClipboardState,
     pub input: Input,
     pub pending_external_actions: PendingExternalActions,
-    pub create_state: CreateState,
-    pub delete_state: DeleteState,
     pub processes: ProcessesManager,
+    pub delete_path: Option<PathBuf>,
 }
 
 impl<'a> App<'a> {
@@ -379,12 +68,11 @@ impl<'a> App<'a> {
             explorer: state,
             input: Input::default(),
             watcher,
-            clipboard: Clipboard::new().ok(),
-            file_clipboard: FileClipboardState::default(),
+            clipboard_controller: Clipboard::new().ok(),
+            clipboard: FileClipboardState::default(),
             pending_external_actions: PendingExternalActions::default(),
-            create_state: CreateState::default(),
-            delete_state: DeleteState::default(),
             processes: ProcessesManager::new(),
+            delete_path: None,
         }
     }
     /// Se activa al haber un cambio en el directorio (disparado por el watcher).
@@ -446,7 +134,7 @@ impl<'a> App<'a> {
             Action::AddClipboard => self.action_add_clipboard(),
             Action::RemoveClipboard => self.action_remove_clipboard(),
             Action::ClearFileClipboard => self.action_clear_clipboard(),
-            Action::FocusClipboard => self.action_focus_file_clipboard(),
+            Action::FocusClipboard => self.action_focus_clipboard(),
             Action::ExitFileClipboard => self.action_exit_clipboard(),
 
             Action::Processes => self.action_focus_processes(),
@@ -528,7 +216,7 @@ impl<'a> App<'a> {
 
     /// Copia `value` al portapapeles del sistema, si hay uno disponible.
     fn copy_clipboard(&mut self, value: String) {
-        if let Some(clipboard) = self.clipboard.as_mut() {
+        if let Some(clipboard) = self.clipboard_controller.as_mut() {
             let _ = clipboard.set_text(value);
         }
     }
@@ -750,14 +438,13 @@ impl<'a> App<'a> {
     fn action_focus_new(&mut self) {
         self.active_panel = Panel::New;
         self.input.clear();
-        self.create_state.open();
     }
 
     /// Confirma la creación del archivo/directorio ingresado en el input.
     /// Si el input está vacío, simplemente cierra el panel. Si hay un error
     /// al crear, lo muestra en el popup y mantiene el panel abierto.
     fn action_confirm_create(&mut self) {
-        if let CreateState::Error(_) = self.create_state {
+        if self.active_panel != Panel::New {
             return;
         }
 
@@ -768,23 +455,23 @@ impl<'a> App<'a> {
             self.input.clear();
             return;
         }
+        let is_dir = input_value.ends_with("/");
+        let path = self.explorer.pwd.join(input_value.clone());
 
-        let full_path = self.explorer.pwd.join(input_value.clone());
-
-        if let Err(err) = self.explorer.create_entry(full_path, &input_value) {
-            self.create_state.fail(err);
+        if fs::symlink_metadata(&path).is_ok() {
+            self.input.invalid = true;
         } else {
-            self.active_panel = Panel::Files;
-            self.create_state.close();
-        }
+            self.input.invalid = false;
+            self.processes.spawn_create(path, is_dir);
 
-        self.input.clear();
+            self.active_panel = Panel::Files;
+            self.input.clear();
+        }
     }
 
     /// Cancela la creación: cierra el popup, vuelve al FilePanel y
     /// descarta el texto ingresado en el input.
     fn action_cancel_create(&mut self) {
-        self.create_state.close();
         self.active_panel = Panel::Files;
         self.input.clear();
     }
@@ -795,29 +482,29 @@ impl<'a> App<'a> {
             return;
         }
 
-        self.active_panel = Panel::Delete;
-        self.delete_state.open();
+        if let Some(entry) = self.get_current_entry() {
+            self.delete_path = Some(entry.path.clone());
+            self.active_panel = Panel::Delete;
+        }
     }
 
     fn action_confirm_delete(&mut self) {
-        if let DeleteState::Error(_) = self.delete_state {
+        if self.active_panel != Panel::Delete {
             return;
         }
 
-        if let Some(entry) = self.get_current_entry() {
-            if let Err(err) = self.explorer.delete_entry(entry.path.clone()) {
-                self.delete_state.fail(err);
-            } else {
-                self.active_panel = Panel::Files;
-                self.delete_state.close();
-                self.update();
-            }
+        if let Some(path) = self.delete_path.take() {
+            self.processes.spawn_delete(path);
+
+            self.active_panel = Panel::Files;
+            self.delete_path = None;
+            self.update();
         }
     }
 
     fn action_cancel_delete(&mut self) {
-        self.delete_state.close();
         self.active_panel = Panel::Files;
+        self.delete_path = None;
     }
 
     // Acciones: FileClipboard
@@ -828,7 +515,7 @@ impl<'a> App<'a> {
             let entry_path = entry.path.clone();
 
             if self
-                .file_clipboard
+                .clipboard
                 .list
                 .iter()
                 .find(|i| &i.path == &entry_path)
@@ -837,8 +524,8 @@ impl<'a> App<'a> {
                 return;
             };
 
-            self.file_clipboard.add(entry_path);
-            self.panels[Panel::Clipboard].count = self.file_clipboard.len();
+            self.clipboard.add(entry_path);
+            self.panels[Panel::Clipboard].count = self.clipboard.len();
             self.panels[Panel::Clipboard].set_selected(0);
         }
     }
@@ -847,23 +534,23 @@ impl<'a> App<'a> {
     fn action_remove_clipboard(&mut self) {
         if self.active_panel == Panel::Files
             && let Some(entry) = self.get_current_entry()
-            && self.file_clipboard.remove_exist(&entry.path.clone())
+            && self.clipboard.remove_exist(&entry.path.clone())
         {
-            self.panels[Panel::Clipboard].count = self.file_clipboard.len();
-            self.panels[Panel::Clipboard].clamp_selected(self.file_clipboard.len());
+            self.panels[Panel::Clipboard].count = self.clipboard.len();
+            self.panels[Panel::Clipboard].clamp_selected(self.clipboard.len());
         }
 
         if self.active_panel != Panel::Clipboard {
             return;
         }
 
-        self.file_clipboard
+        self.clipboard
             .remove(self.panels[Panel::Clipboard].selected);
 
-        self.panels[Panel::Clipboard].count = self.file_clipboard.len();
-        self.panels[Panel::Clipboard].clamp_selected(self.file_clipboard.len());
+        self.panels[Panel::Clipboard].count = self.clipboard.len();
+        self.panels[Panel::Clipboard].clamp_selected(self.clipboard.len());
 
-        if self.file_clipboard.len() == 0 {
+        if self.clipboard.len() == 0 {
             self.action_exit_clipboard();
         }
     }
@@ -874,22 +561,22 @@ impl<'a> App<'a> {
             return;
         }
 
-        self.file_clipboard.clear();
+        self.clipboard.clear();
 
-        self.panels[Panel::Clipboard].clamp_selected(self.file_clipboard.len());
+        self.panels[Panel::Clipboard].clamp_selected(self.clipboard.len());
 
         self.action_exit_clipboard();
     }
 
-    /// Le da focus al FileClipboard
-    fn action_focus_file_clipboard(&mut self) {
-        if self.file_clipboard.len() > 0 {
+    /// Le da focus al Clipboard
+    fn action_focus_clipboard(&mut self) {
+        if self.clipboard.len() > 0 {
             self.active_panel = Panel::Clipboard;
             self.panels[Panel::Clipboard].valid = true;
         }
     }
 
-    /// Sale del FileClipboard y le da focus al FilePanel
+    /// Sale del Clipboard y le da focus al FilePanel
     fn action_exit_clipboard(&mut self) {
         self.active_panel = Panel::Files;
         self.panels[Panel::Clipboard].valid = false;
@@ -936,11 +623,11 @@ impl<'a> App<'a> {
     }
 
     fn action_add_copy_process(&mut self) {
-        if self.file_clipboard.len() == 0 {
+        if self.clipboard.len() == 0 {
             return;
         }
 
         self.processes
-            .spawn_copy(self.file_clipboard.get(), self.explorer.get_pwd());
+            .spawn_copy(self.clipboard.get(), self.explorer.get_pwd());
     }
 }

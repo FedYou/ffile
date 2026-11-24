@@ -7,7 +7,7 @@ use ratatui::{
     },
 };
 
-use ffile_core::app::{App, Panel};
+use ffile_core::app::{App, panels::Panel};
 
 use crate::utils::truncate_with_leading_ellipsis;
 
@@ -55,9 +55,9 @@ pub fn render_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, app: &
 
     frame.render_widget(clipboard_block, panel_area);
 
-    if !app.file_clipboard.list.is_empty() {
+    if !app.clipboard.list.is_empty() {
         let clipboard_items: Vec<ListItem> = app
-            .file_clipboard
+            .clipboard
             .list
             .iter()
             .map(|i| {
@@ -87,8 +87,7 @@ pub fn render_clipboard(frame: &mut ratatui::Frame, clipboard_area: Rect, app: &
         if app.panels[Panel::Clipboard].count > 0 {
             let selected_index = app.panels[Panel::Clipboard].selected;
 
-            selection_indicator =
-                format!("═╣ {}/{} ╠═", selected_index + 1, app.file_clipboard.len());
+            selection_indicator = format!("═╣ {}/{} ╠═", selected_index + 1, app.clipboard.len());
         }
 
         let clipboard_list = List::new(clipboard_items)

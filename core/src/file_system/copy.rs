@@ -1,3 +1,4 @@
+use crate::processes::{ProcessEvent, ProcessId};
 use std::cmp;
 use std::fs::{self, File, read_link, symlink_metadata};
 use std::io::{self, Read, Write};
@@ -5,8 +6,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-
-use crate::processes::{ProcessEvent, ProcessId};
 
 struct CopyEntry {
     src: PathBuf,

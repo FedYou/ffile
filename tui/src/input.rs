@@ -44,7 +44,11 @@ pub fn render_input(
                     c.to_string(),
                     Style::default()
                         .fg(input_style.foreground_color)
-                        .add_modifier(input_style.text_modifier),
+                        .add_modifier(if app.input.invalid {
+                            Modifier::UNDERLINED
+                        } else {
+                            input_style.text_modifier
+                        }),
                 )
             }
         })

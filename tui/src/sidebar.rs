@@ -5,7 +5,7 @@ use ratatui::{
 };
 
 use crate::utils::get_sidebar_icon;
-use ffile_core::app::{App, Panel};
+use ffile_core::app::{App, panels::Panel};
 
 pub fn render_sidebar(frame: &mut ratatui::Frame, sidebar_area: Rect, app: &mut App) {
     let mut bookmarks_list_area = sidebar_area.inner(Margin {

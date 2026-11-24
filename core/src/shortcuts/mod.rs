@@ -7,7 +7,7 @@ pub use shortcuts::Shortcuts;
 pub use types::{KeyCode, KeyEvent};
 
 use crate::{
-    actions::ACTIONS_ENABLED, actions::Action, app::Panel, get_config,
+    actions::ACTIONS_ENABLED, actions::Action, app::panels::Panel, get_config,
     shortcuts::shortcuts::ShortcutKey,
 };
 

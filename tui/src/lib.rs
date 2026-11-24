@@ -1,17 +1,16 @@
 mod clipboard;
 mod corners;
-mod create;
-mod delete;
 mod files;
 mod input;
 mod metadata;
+mod popup;
 mod processes;
 mod screen;
 mod sidebar;
 mod utils;
 
 use ffile_core::{
-    app::{App, Panel},
+    app::{App, panels::Panel},
     global::{MIN_TERM_HEIGHT, MIN_TERM_WIDTH},
 };
 
@@ -80,6 +79,5 @@ pub fn render(frame: &mut ratatui::Frame, app: &mut App) {
 
     corners::render_panel_corners(frame, sidebar_area, file_panel_area, metadata_area);
 
-    create::render_create_popup(frame, app);
-    delete::render_delete_popup(frame, app);
+    popup::render_popup(frame, app);
 }

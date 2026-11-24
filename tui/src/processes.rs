@@ -9,7 +9,7 @@ use ratatui::{
 use ratatui_braille_bar::BrailleBar;
 
 use ffile_core::{
-    app::{App, Panel},
+    app::{App, panels::Panel},
     file_system::utils::bytes_to_size_string,
     processes::{Process, ProcessKind, ProcessStatus},
 };
@@ -56,22 +56,50 @@ fn build_status_body_message_span(process: &Process, len: usize) -> Span<'_> {
         String::new()
     };
 
-    let mut message = match process.status {
-        ProcessStatus::Running => String::new(),
-        ProcessStatus::Finished => format!(
-            "Finished in {duration}, copied {} from {} to {}",
-            bytes_to_size_string(process.bytes_total.unwrap_or(0)),
-            format!(
-                "{}/{}",
-                process.entries_done.unwrap_or(0),
-                process.entries_total.unwrap_or(0)
+    let mut message = match process.kind {
+        ProcessKind::Copy => match process.status {
+            ProcessStatus::Running => String::new(),
+            ProcessStatus::Finished => format!(
+                "Finished in {duration}, copied {} from {} to {}",
+                bytes_to_size_string(process.bytes_total.unwrap_or(0)),
+                format!(
+                    "{}/{}",
+                    process.entries_done.unwrap_or(0),
+                    process.entries_total.unwrap_or(0)
+                ),
+                process.pwd.display()
             ),
-            process.pwd.display()
-        ),
-        ProcessStatus::Failed => format!("There was an error copying to {}", process.pwd.display()),
-        ProcessStatus::Cancelled => {
-            format!("Copying was canceled: {}", process.pwd.display())
-        }
+            ProcessStatus::Failed => {
+                format!("There was an error copying to {}", process.pwd.display())
+            }
+            ProcessStatus::Cancelled => {
+                format!("Copying was canceled: {}", process.pwd.display())
+            }
+        },
+        ProcessKind::Delete => match process.status {
+            ProcessStatus::Running => String::new(),
+            ProcessStatus::Finished => {
+                format!("Finished in {duration}, deleted {}", process.pwd.display())
+            }
+            ProcessStatus::Failed => {
+                format!("There was an error deleting {}", process.pwd.display())
+            }
+            ProcessStatus::Cancelled => {
+                format!("Delete was canceled: {}", process.pwd.display())
+            }
+        },
+        ProcessKind::Create => match process.status {
+            ProcessStatus::Running => String::new(),
+            ProcessStatus::Finished => {
+                format!("Finished in {duration}, created {}", process.pwd.display())
+            }
+            ProcessStatus::Failed => {
+                format!("There was an error creating {}", process.pwd.display())
+            }
+            ProcessStatus::Cancelled => {
+                format!("Create was canceled: {}", process.pwd.display())
+            }
+        },
     };
 
     message = truncate_with_ellipsis(len, message);
@@ -92,6 +120,8 @@ fn buid_process_information(process: &Process) -> Vec<Line<'_>> {
     process_type.push(Span::styled(
         match process.kind {
             ProcessKind::Copy => "Copy",
+            ProcessKind::Create => "Create",
+            ProcessKind::Delete => "Delete",
         },
         Style::default().fg(Color::Green),
     ));
@@ -183,6 +213,33 @@ fn buid_process_information(process: &Process) -> Vec<Line<'_>> {
     content
 }
 
+fn get_selection_indicator(is_selected: bool) -> (Span<'static>, Span<'static>, Span<'static>) {
+    let top: Span = if is_selected {
+        Span::styled("  ", Style::default().fg(Color::Yellow))
+    } else {
+        Span::raw("   ")
+    };
+
+    let center: Span = if is_selected {
+        Span::styled("❯ ", Style::default().fg(Color::Yellow))
+    } else {
+        Span::raw("   ")
+    };
+
+    let bottom: Span = if is_selected {
+        Span::styled("  ", Style::default().fg(Color::Yellow))
+    } else {
+        Span::raw("   ")
+    };
+
+    (top, center, bottom)
+}
+
+fn get_content_len(list_area: Rect, is_selected: bool) -> usize {
+    let indicador_width = if is_selected { 2 } else { 3 };
+    list_area.width.saturating_sub(indicador_width + 6 + 6) as usize
+}
+
 fn build_copy_process_item(
     list_area: Rect,
     process: &Process,
@@ -192,39 +249,18 @@ fn build_copy_process_item(
     let process_icon: &str = "";
     let progress = process.progress.unwrap_or(0.0);
 
-    let selection_indicator_top: Span = if is_selected {
-        Span::styled("  ", Style::default().fg(Color::Yellow))
-    } else {
-        Span::raw("   ")
-    };
+    let indicator = get_selection_indicator(is_selected);
 
-    let selection_indicator_center: Span = if is_selected {
-        Span::styled("❯ ", Style::default().fg(Color::Yellow))
-    } else {
-        Span::raw("   ")
-    };
-
-    let selection_indicator_bottom: Span = if is_selected {
-        Span::styled("  ", Style::default().fg(Color::Yellow))
-    } else {
-        Span::raw("   ")
-    };
-
-    let message_len: usize = if is_selected {
-        (list_area.width - 2 - 6 - 6) as usize
-    } else {
-        (list_area.width - 3 - 6 - 6) as usize
-    };
-
+    let content_len = get_content_len(list_area, is_selected);
     // --
 
     let header_spans: Vec<Span> = vec![
-        selection_indicator_top,
+        indicator.0,
         Span::styled("╭───╮ ", Style::default().fg(status_color)),
         // Message
         Span::styled(
             truncate_with_ellipsis(
-                message_len,
+                content_len,
                 process.message.clone().unwrap_or(String::new()),
             ),
             Style::default().italic(),
@@ -232,7 +268,7 @@ fn build_copy_process_item(
     ];
 
     let mut body_spans: Vec<Span> = vec![
-        selection_indicator_center,
+        indicator.1,
         Span::styled(
             format!("│ {process_icon} │ "),
             Style::default().fg(status_color),
@@ -245,7 +281,7 @@ fn build_copy_process_item(
     ];
 
     let mut footer_spans: Vec<Span> = vec![
-        selection_indicator_bottom,
+        indicator.2,
         Span::styled("╰───╯", Style::default().fg(status_color)),
     ];
 
@@ -257,7 +293,7 @@ fn build_copy_process_item(
         body_spans.append(&mut progress_bar.spans);
         footer_spans.push(build_transfer_stats_span(process));
     } else {
-        body_spans.push(build_status_body_message_span(process, message_len));
+        body_spans.push(build_status_body_message_span(process, content_len));
     }
 
     // --
@@ -270,6 +306,108 @@ fn build_copy_process_item(
         .style(Style::default().fg(Color::Gray).dim())
 }
 
+fn build_delete_process_item(
+    list_area: Rect,
+    process: &Process,
+    status_color: Color,
+    is_selected: bool,
+) -> ListItem<'_> {
+    let process_icon: &str = "󰧧";
+
+    let indicator = get_selection_indicator(is_selected);
+
+    let content_len = get_content_len(list_area, is_selected);
+
+    // --
+
+    let header_spans: Vec<Span> = vec![
+        indicator.0,
+        Span::styled("╭───╮ ", Style::default().fg(status_color)),
+        // Message
+        Span::styled(
+            truncate_with_ellipsis(
+                content_len,
+                process.message.clone().unwrap_or(String::new()),
+            ),
+            Style::default().italic(),
+        ),
+    ];
+
+    let mut body_spans: Vec<Span> = vec![
+        indicator.1,
+        Span::styled(
+            format!("│ {process_icon} │ "),
+            Style::default().fg(status_color),
+        ),
+    ];
+
+    let footer_spans: Vec<Span> = vec![
+        indicator.2,
+        Span::styled("╰───╯", Style::default().fg(status_color)),
+    ];
+
+    body_spans.push(build_status_body_message_span(process, content_len));
+
+    // --
+
+    let header_line = Line::from(header_spans);
+    let body_line = Line::from(body_spans);
+    let footer_line = Line::from(footer_spans).style(Style::default().italic());
+
+    ListItem::new(vec![header_line, body_line, footer_line])
+        .style(Style::default().fg(Color::Gray).dim())
+}
+
+fn build_create_process_item(
+    list_area: Rect,
+    process: &Process,
+    status_color: Color,
+    is_selected: bool,
+) -> ListItem<'_> {
+    let process_icon: &str = "";
+    let indicator = get_selection_indicator(is_selected);
+
+    let content_len = get_content_len(list_area, is_selected);
+
+    // --
+
+    let header_spans: Vec<Span> = vec![
+        indicator.0,
+        Span::styled("╭───╮ ", Style::default().fg(status_color)),
+        // Message
+        Span::styled(
+            truncate_with_ellipsis(
+                content_len,
+                process.message.clone().unwrap_or(String::new()),
+            ),
+            Style::default().italic(),
+        ),
+    ];
+
+    let mut body_spans: Vec<Span> = vec![
+        indicator.1,
+        Span::styled(
+            format!("│ {process_icon} │ "),
+            Style::default().fg(status_color),
+        ),
+    ];
+
+    let footer_spans: Vec<Span> = vec![
+        indicator.2,
+        Span::styled("╰───╯", Style::default().fg(status_color)),
+    ];
+
+    body_spans.push(build_status_body_message_span(process, content_len));
+
+    // --
+
+    let header_line = Line::from(header_spans);
+    let body_line = Line::from(body_spans);
+    let footer_line = Line::from(footer_spans).style(Style::default().italic());
+
+    ListItem::new(vec![header_line, body_line, footer_line])
+        .style(Style::default().fg(Color::Gray).dim())
+}
 ///
 /// Render
 ///
@@ -318,6 +456,12 @@ pub fn render_process_panel(frame: &mut ratatui::Frame, process_area: Rect, app:
             match process.kind {
                 ProcessKind::Copy => {
                     build_copy_process_item(list_area, process, status_color, is_selected)
+                }
+                ProcessKind::Delete => {
+                    build_delete_process_item(list_area, process, status_color, is_selected)
+                }
+                ProcessKind::Create => {
+                    build_create_process_item(list_area, process, status_color, is_selected)
                 }
             }
         })

@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use ffile_core::{
-    app::{App, Panel},
+    app::{App, panels::Panel},
     file_system::directories::Sort,
 };
 
@@ -117,7 +117,7 @@ pub fn render_files(frame: &mut ratatui::Frame, area: Rect, app: &mut App) {
         .visible_entries
         .iter()
         .map(|entry| {
-            let entry_icon_is_selected = if app.file_clipboard.exist(&entry.path) {
+            let entry_icon_is_selected = if app.clipboard.exist(&entry.path) {
                 " "
             } else {
                 ""

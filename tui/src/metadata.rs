@@ -4,7 +4,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph, TitlePosition},
 };
 
-use ffile_core::app::{App, Panel};
+use ffile_core::app::{App, panels::Panel};
 
 use crate::utils::truncate_with_ellipsis;
 

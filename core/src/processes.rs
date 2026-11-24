@@ -1,4 +1,6 @@
 use crate::file_system::copy::copy;
+use crate::file_system::create::create;
+use crate::file_system::delete::delete;
 use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,6 +13,8 @@ pub type ProcessId = u64;
 #[derive(Debug, Clone)]
 pub enum ProcessKind {
     Copy,
+    Delete,
+    Create,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -164,6 +168,14 @@ impl ProcessesManager {
         }
     }
 
+    pub fn get_index(&mut self, index: usize) -> Option<(&ProcessId, &Process)> {
+        self.processes.get_index(index)
+    }
+
+    pub fn len(&self) -> usize {
+        self.processes.len()
+    }
+
     pub fn spawn_copy(&mut self, src: Vec<PathBuf>, destination: PathBuf) -> ProcessId {
         let id = self.next_id;
         self.next_id += 1;
@@ -206,11 +218,87 @@ impl ProcessesManager {
         id
     }
 
-    pub fn get_index(&mut self, index: usize) -> Option<(&ProcessId, &Process)> {
-        self.processes.get_index(index)
+    pub fn spawn_delete(&mut self, path: PathBuf) -> ProcessId {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+
+        let process = Process {
+            pwd: path.clone(),
+            id,
+            kind: ProcessKind::Delete,
+            status: ProcessStatus::Running,
+
+            progress: None,
+            bytes_done: None,
+            bytes_total: None,
+            speed: None,
+            eta: None,
+            message: None,
+            entries_total: None,
+            entries_done: None,
+            started_at: std::time::Instant::now(),
+            duration: None,
+            cancel_flag: cancel_flag.clone(),
+            errors: None,
+        };
+
+        let tx = self.tx.clone();
+
+        let task = tokio::spawn(async move {
+            let event = match delete(path, tx.clone(), id).await {
+                Ok(()) => ProcessEvent::Finished { id },
+                Err(errs) => ProcessEvent::Failed { id, errors: errs },
+            };
+            let _ = tx.send(event).await;
+        });
+
+        self.processes.shift_insert(0, id, process);
+        self.task.insert(id, task);
+
+        id
     }
 
-    pub fn len(&self) -> usize {
-        self.processes.len()
+    pub fn spawn_create(&mut self, path: PathBuf, is_dir: bool) -> ProcessId {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+
+        let process = Process {
+            pwd: path.clone(),
+            id,
+            kind: ProcessKind::Create,
+            status: ProcessStatus::Running,
+
+            progress: None,
+            bytes_done: None,
+            bytes_total: None,
+            speed: None,
+            eta: None,
+            message: None,
+            entries_total: None,
+            entries_done: None,
+            started_at: std::time::Instant::now(),
+            duration: None,
+            cancel_flag: cancel_flag.clone(),
+            errors: None,
+        };
+
+        let tx = self.tx.clone();
+
+        let task = tokio::spawn(async move {
+            let event = match create(path, is_dir, tx.clone(), id).await {
+                Ok(()) => ProcessEvent::Finished { id },
+                Err(errs) => ProcessEvent::Failed { id, errors: errs },
+            };
+            let _ = tx.send(event).await;
+        });
+
+        self.processes.shift_insert(0, id, process);
+        self.task.insert(id, task);
+
+        id
     }
 }
