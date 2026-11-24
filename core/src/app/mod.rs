@@ -35,7 +35,7 @@ pub struct App<'a> {
     pub panels: EnumMap<Panel, SelectionIndex>,
     pub explorer: ExplorerState,
     /// Watcher del filesystem: vigila el directorio actual para detectar cambios.
-    watcher: MutexGuard<'a, RecommendedWatcher>,
+    watcher: MutexGuard<'a, Result<RecommendedWatcher, notify::Error>>,
     /// Portapapeles del sistema (si hay uno disponible).
     clipboard_controller: Option<Clipboard>,
     pub clipboard: FileClipboardState,
@@ -54,7 +54,9 @@ impl<'a> App<'a> {
 
         let mut watcher = watcher::get_watcher();
 
-        let _ = watcher.watch(&state.pwd, notify::RecursiveMode::NonRecursive);
+        if let Ok(watcher) = watcher.as_mut() {
+            let _ = watcher.watch(&state.pwd, notify::RecursiveMode::NonRecursive);
+        }
 
         let mut panels: EnumMap<Panel, SelectionIndex> = EnumMap::default();
 
@@ -196,13 +198,15 @@ impl<'a> App<'a> {
     /// Cambia el pwd a `path`: reubica el watcher, recarga entries y metadata.
     /// Usada por navegación (abrir carpeta, ir al padre, abrir bookmark).
     fn open_directory(&mut self, path: PathBuf) {
-        let _ = self.watcher.unwatch(&self.explorer.pwd);
+        if let Ok(watcher) = self.watcher.as_mut() {
+            let _ = watcher.unwatch(&self.explorer.pwd);
+        }
 
         self.explorer.update_pwd(Some(path));
 
-        let _ = self
-            .watcher
-            .watch(&self.explorer.pwd, notify::RecursiveMode::NonRecursive);
+        if let Ok(watcher) = self.watcher.as_mut() {
+            let _ = watcher.watch(&self.explorer.pwd, notify::RecursiveMode::NonRecursive);
+        }
 
         self.explorer.update_entries();
 
@@ -229,8 +233,12 @@ impl<'a> App<'a> {
         self.panels[self.active_panel].prev();
         match self.active_panel {
             Panel::Files => {
-                self.explorer
-                    .update_metadata(self.panels[Panel::Files].selected);
+                if self.watcher.is_err() {
+                    self.update();
+                } else {
+                    self.explorer
+                        .update_metadata(self.panels[Panel::Files].selected);
+                }
             }
             Panel::Processes => {
                 self.panels[Panel::ProcessInfo].selected = 0;
@@ -245,8 +253,12 @@ impl<'a> App<'a> {
         self.panels[self.active_panel].next();
         match self.active_panel {
             Panel::Files => {
-                self.explorer
-                    .update_metadata(self.panels[Panel::Files].selected);
+                if self.watcher.is_err() {
+                    self.update();
+                } else {
+                    self.explorer
+                        .update_metadata(self.panels[Panel::Files].selected);
+                }
             }
             Panel::Processes => {
                 self.panels[Panel::ProcessInfo].selected = 0;

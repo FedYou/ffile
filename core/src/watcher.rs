@@ -2,7 +2,7 @@ use notify::{RecommendedWatcher, Watcher};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use tokio::sync::Mutex as AsyncMutex;
 
-static WATCHER: OnceLock<Mutex<RecommendedWatcher>> = OnceLock::new();
+static WATCHER: OnceLock<Mutex<Result<RecommendedWatcher, notify::Error>>> = OnceLock::new();
 static WATCHER_CHANNEL: OnceLock<WatcherChannel> = OnceLock::new();
 
 pub use notify::EventKind;
@@ -17,12 +17,7 @@ pub fn init_watcher() {
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let watcher = loop {
-        match RecommendedWatcher::new(tx.clone(), notify::Config::default()) {
-            Ok(w) => break w,
-            _ => {}
-        }
-    };
+    let watcher = RecommendedWatcher::new(tx.clone(), notify::Config::default());
 
     let watcher_tx_clone = watcher_tx.clone();
     std::thread::spawn(move || {
@@ -41,7 +36,7 @@ pub fn init_watcher() {
     let _ = WATCHER.set(Mutex::new(watcher));
 }
 
-pub fn get_watcher() -> MutexGuard<'static, RecommendedWatcher> {
+pub fn get_watcher() -> MutexGuard<'static, Result<RecommendedWatcher, notify::Error>> {
     WATCHER
         .get()
         .expect("Watcher not initialized")
