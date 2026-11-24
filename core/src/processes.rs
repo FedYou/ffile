@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 pub type ProcessId = u64;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ProcessKind {
     Copy,
     Delete,
@@ -162,9 +162,11 @@ impl ProcessesManager {
         if let Some(process) = self.processes.get_mut(id)
             && process.status == ProcessStatus::Running
         {
-            process.status = ProcessStatus::Cancelled;
-            process.cancel_flag.store(true, Ordering::Relaxed);
-            process.duration = Some(process.started_at.elapsed());
+            if process.kind == ProcessKind::Copy {
+                process.status = ProcessStatus::Cancelled;
+                process.cancel_flag.store(true, Ordering::Relaxed);
+                process.duration = Some(process.started_at.elapsed());
+            }
         }
     }
 

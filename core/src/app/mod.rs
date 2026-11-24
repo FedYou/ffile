@@ -510,7 +510,6 @@ impl<'a> App<'a> {
 
             self.active_panel = Panel::Files;
             self.delete_path = None;
-            self.update();
         }
     }
 
